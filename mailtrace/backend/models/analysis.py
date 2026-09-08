@@ -10,7 +10,7 @@ PostgreSQL JSONB.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import String, Float, Integer, DateTime, Text, JSON
+from sqlalchemy import String, Float, Integer, DateTime, Text, JSON, LargeBinary
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base
@@ -37,6 +37,7 @@ class AnalysisCase(Base):
       Phase 7  → campaign_id, correlation_data (JSON)
       Phase 8  → report_path
       Phase 9  → evidence_hash, parsed_evidence_hash, analysis_hash, blockchain_tx_id, blockchain_anchor_data
+      Evidence → evidence_bytes (BYTEA/LargeBinary), evidence_content_type, evidence_storage_type
     """
 
     __tablename__ = "analysis_cases"
@@ -55,11 +56,16 @@ class AnalysisCase(Base):
     )
 
     # ---------------------------------------------------------------- #
-    #  Input                                                             #
+    #  Input & Persistent Evidence Storage                             #
     # ---------------------------------------------------------------- #
     original_filename: Mapped[str] = mapped_column(String(512), nullable=False)
-    stored_filename: Mapped[str] = mapped_column(String(512), nullable=False)
+    stored_filename: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # Raw persistent evidence bytes (stored in PostgreSQL BYTEA / SQLite BLOB)
+    evidence_bytes: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    evidence_content_type: Mapped[str | None] = mapped_column(String(128), nullable=True, default="message/rfc822")
+    evidence_storage_type: Mapped[str | None] = mapped_column(String(32), nullable=True, default="db_bytea")
 
     # ---------------------------------------------------------------- #
     #  Phase 2 — Parsed email                                            #

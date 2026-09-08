@@ -234,11 +234,17 @@ async def init_db() -> None:
                     table_names = inspector.get_table_names()
                     if "analysis_cases" in table_names:
                         existing_cols = {col["name"] for col in inspector.get_columns("analysis_cases")}
+                        dialect_name = sync_conn.dialect.name
+                        binary_type = "BYTEA" if dialect_name == "postgresql" else "BLOB"
+
                         new_cols = {
                             "parsed_evidence_hash": "VARCHAR(64)",
                             "analysis_hash": "VARCHAR(64)",
                             "blockchain_tx_id": "VARCHAR(128)",
                             "blockchain_anchor_data": "JSON",
+                            "evidence_bytes": binary_type,
+                            "evidence_content_type": "VARCHAR(128)",
+                            "evidence_storage_type": "VARCHAR(32)",
                         }
                         for col_name, col_type in new_cols.items():
                             if col_name not in existing_cols:

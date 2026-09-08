@@ -44,13 +44,14 @@ async def lifespan(app: FastAPI):
     logger.info(f"  {settings.APP_NAME} v{settings.APP_VERSION}  [{settings.APP_ENV}]")
     logger.info("=" * 60)
 
-    # Ensure upload and report directories exist
-    for directory in (settings.UPLOAD_DIR, settings.REPORT_DIR):
-        try:
-            Path(directory).mkdir(parents=True, exist_ok=True)
-            logger.info(f"  Directory ready: {directory}")
-        except Exception as exc:
-            logger.warning(f"  Directory warning for {directory}: {exc}")
+    # Ensure upload and report directories exist in local dev (safely ignored in serverless)
+    if not os.getenv("VERCEL") and not os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+        for directory in (settings.UPLOAD_DIR, settings.REPORT_DIR):
+            try:
+                Path(directory).mkdir(parents=True, exist_ok=True)
+                logger.debug(f"  Directory ready: {directory}")
+            except Exception as exc:
+                logger.debug(f"  Directory check notice for {directory}: {exc}")
 
     # Initialize database tables
     logger.info("  Initializing database …")

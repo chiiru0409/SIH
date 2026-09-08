@@ -311,14 +311,22 @@ async def verify_case_evidence(
 
     if raw_file_bytes is not None:
         actual_file_hash = sha256_bytes(raw_file_bytes)
+    elif case.evidence_bytes is not None:
+        actual_file_hash = sha256_bytes(case.evidence_bytes)
     else:
-        # Read from disk
-        file_path = Path(settings.UPLOAD_DIR) / case.stored_filename
-        if file_path.exists():
-            actual_file_hash = sha256_file(file_path)
-        else:
+        # Fallback: check legacy disk path if available (for pre-migration local test cases)
+        loaded = False
+        if case.stored_filename:
+            file_path = Path(settings.UPLOAD_DIR) / case.stored_filename
+            if file_path.is_file():
+                try:
+                    actual_file_hash = sha256_file(file_path)
+                    loaded = True
+                except Exception as read_err:
+                    logger.warning(f"Could not read legacy evidence file {file_path}: {read_err}")
+        if not loaded:
             is_valid = False
-            details.append(f"Stored evidence file not found at {file_path.name}.")
+            details.append("Stored evidence bytes not found in durable storage.")
 
     if actual_file_hash and expected_file_hash:
         if actual_file_hash.lower() == expected_file_hash.lower():
@@ -328,6 +336,9 @@ async def verify_case_evidence(
             details.append(
                 f"FILE INTEGRITY MISMATCH: current='{actual_file_hash}', stored='{expected_file_hash}'."
             )
+    elif not expected_file_hash:
+        is_valid = False
+        details.append("Case has no recorded SHA-256 evidence commitment.")
 
     # 2. Parsed evidence hash verification
     current_parsed_hash = compute_parsed_evidence_hash(case.parsed_email)

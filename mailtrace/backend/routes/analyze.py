@@ -197,19 +197,19 @@ async def upload_eml(
             },
         )
 
-    # ---- Generate case ID and store file ----
+    # ---- Generate case ID and calculate raw evidence hash ----
     case_id = str(uuid.uuid4())
     safe_name = f"{case_id}.eml"
-    upload_path = Path(settings.UPLOAD_DIR) / safe_name
+    file_sha256 = sha256_bytes(raw_bytes)
 
-    try:
-        upload_path.write_bytes(raw_bytes)
-    except Exception as exc:
-        logger.error(f"File storage error: {exc}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"status": "error", "code": "STORAGE_ERROR", "message": "Could not store uploaded file."},
-        )
+    # Optional developer convenience: best-effort local sample copy in dev (never blocks or errors)
+    if settings.APP_ENV != "production" and not os.getenv("VERCEL"):
+        try:
+            upload_path = Path(settings.UPLOAD_DIR) / safe_name
+            upload_path.parent.mkdir(parents=True, exist_ok=True)
+            upload_path.write_bytes(raw_bytes)
+        except Exception as dev_save_err:
+            logger.debug(f"Dev local sample write skipped: {dev_save_err}")
 
     # ---- Parse email ----
     try:
@@ -220,11 +220,6 @@ async def upload_eml(
 
     # Check for fatal parse failure
     if parsed.get("fatal"):
-        # Clean up stored file
-        try:
-            os.remove(upload_path)
-        except Exception:
-            pass
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={
@@ -318,6 +313,9 @@ async def upload_eml(
         original_filename=filename,
         stored_filename=safe_name,
         file_size_bytes=len(raw_bytes),
+        evidence_bytes=raw_bytes,
+        evidence_content_type=file.content_type or "message/rfc822",
+        evidence_storage_type="db_bytea",
         parsed_email=parsed,
         forensic_analysis=forensic_data,
         ai_analysis=threat_data,
