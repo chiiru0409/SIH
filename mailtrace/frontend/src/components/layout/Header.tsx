@@ -92,7 +92,7 @@ export const Header: React.FC<HeaderProps> = ({
                   ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400'
                   : 'bg-red-950/40 border-red-500/30 text-red-400 animate-pulse'
               }`}
-              title={apiConnected ? 'Connected to MailTrace API (localhost:8000)' : 'Backend API is unreachable'}
+              title={apiConnected ? 'Connected to MailTrace API' : 'Backend API is unreachable'}
             >
               <span className={`w-2 h-2 rounded-full ${apiConnected ? 'bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500'}`} />
               <span className="hidden sm:inline">{apiConnected ? 'API ONLINE' : 'API OFFLINE'}</span>

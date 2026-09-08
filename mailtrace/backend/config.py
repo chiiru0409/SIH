@@ -23,17 +23,20 @@ class Settings(BaseSettings):
     DEBUG: bool = True
 
     # ------------------------------------------------------------------ #
-    #  Server                                                              #
+    #  Server & Security                                                   #
     # ------------------------------------------------------------------ #
     HOST: str = "0.0.0.0"
     PORT: int = 8000
+    CORS_ORIGINS: str = "*"               # comma-separated list or "*" in dev
 
     # ------------------------------------------------------------------ #
     #  Database                                                            #
     # ------------------------------------------------------------------ #
-    # SQLite by default — swap DATABASE_URL in .env for PostgreSQL later.
-    # PostgreSQL example: postgresql+asyncpg://user:pass@localhost/mailtrace
+    # SQLite by default for development; PostgreSQL (Neon) in production.
+    # Accepts postgresql://, postgres://, or postgresql+asyncpg:// URLs.
     DATABASE_URL: str = f"sqlite+aiosqlite:///{BASE_DIR}/mailtrace.db"
+    POSTGRES_URL: str = ""                # Vercel / Neon alias fallback
+    NEON_DATABASE_URL: str = ""           # Neon alias fallback
 
     # ------------------------------------------------------------------ #
     #  File storage                                                        #

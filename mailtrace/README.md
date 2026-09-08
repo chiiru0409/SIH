@@ -99,64 +99,79 @@ MAILTRACE enforces clear separation between **deterministic forensic facts** and
 - **Python 3.11+** (Python 3.13 recommended)
 - **Node.js 20+** and **npm**
 
-### 1. Backend Setup
+---
 
+## Local Development vs. Production Deployment
+
+### 1. Local Development (SQLite + Local FastAPI)
+
+**Backend Setup:**
 ```bash
-# Navigate to backend directory
-cd mailtrace/backend
+# Navigate to mailtrace
+cd mailtrace
 
-# Create virtual environment
-python -m venv .venv
-
-# Activate virtual environment
-# Windows PowerShell:
-.venv\Scripts\Activate.ps1
-# Linux / macOS:
-source .venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run backend development server
+# Run backend development server (defaults to local SQLite)
 uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
-
 The interactive OpenAPI / Swagger documentation will be available at `http://127.0.0.1:8000/docs`.
 
-### 2. Frontend Setup
-
+**Frontend Setup:**
 ```bash
 # Navigate to frontend directory
 cd mailtrace/frontend
 
-# Install dependencies
+# Install dependencies & run Vite dev server
 npm install
-
-# Start Vite development server
 npm run dev
 ```
-
 The investigation dashboard will be available at `http://localhost:5173`.
 
 ---
 
-## Environment Configuration
+### 2. Production Deployment (Vercel + Neon PostgreSQL)
 
-Create a `.env` file in `mailtrace/` (or use the provided template):
+MAILTRACE is production-ready for deployment to Vercel with Neon PostgreSQL.
 
-```ini
-# Application Environment
-ENVIRONMENT=development
-DATABASE_URL=sqlite+aiosqlite:///./mailtrace.db
-CORS_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173"]
+#### Option A: Vercel Same-Origin Deployment (Recommended)
+In this architecture, Vercel serves the static React frontend and routes `/api/*` requests to the serverless FastAPI backend entrypoint (`api/index.py`), eliminating cross-origin configuration and localhost dependencies.
 
-# AI Threat Detection (Optional - falls back to deterministic heuristic rules)
-OPENAI_API_KEY=
+**Vercel Environment Variables (Backend / Serverless):**
+- `DATABASE_URL`: Your Neon PostgreSQL connection string (e.g. `postgresql://user:password@ep-xyz.us-east-2.aws.neon.tech/neondb?sslmode=require`)
+- `APP_ENV`: `production`
+- `DEBUG`: `False`
+- `CORS_ORIGINS`: `*` (or your production domain `https://your-domain.vercel.app`)
+- Optional API Keys: `OPENAI_API_KEY`, `IPINFO_TOKEN`, `VIRUSTOTAL_API_KEY`, `ABUSEIPDB_API_KEY`
 
-# Infrastructure Intelligence (Optional - falls back to passive resolution)
-IPINFO_TOKEN=
-VIRUSTOTAL_API_KEY=
-ABUSEIPDB_API_KEY=
+**Frontend Environment Variables (Vercel):**
+- `VITE_API_BASE_URL`: Leave empty or set to `/api` (defaults automatically to same-origin relative URLs in production).
+- *Note*: Never expose `DATABASE_URL` or secrets with a `VITE_` prefix.
+
+#### Option B: Standalone FastAPI Backend (Render / Railway / Fly.io / AWS) + Vercel Frontend
+If the FastAPI backend is hosted as a dedicated service:
+1. **Deploy Backend Service** with:
+   - `DATABASE_URL=postgresql://user:password@ep-xyz.us-east-2.aws.neon.tech/neondb?sslmode=require`
+   - `CORS_ORIGINS=https://your-frontend-domain.vercel.app`
+   - Command: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+2. **Deploy Frontend on Vercel** with:
+   - `VITE_API_BASE_URL=https://your-backend-service.onrender.com`
+
+---
+
+## Environment Variables Reference
+
+| Variable | Scope | Description | Example |
+| :--- | :--- | :--- | :--- |
+| `DATABASE_URL` | Backend Only | Neon PostgreSQL or SQLite async connection string | `postgresql://user:pass@ep-xyz.neon.tech/neondb?sslmode=require` |
+| `APP_ENV` | Backend Only | `development` or `production` | `production` |
+| `DEBUG` | Backend Only | Debug logging toggle | `False` |
+| `CORS_ORIGINS` | Backend Only | Allowed frontend origins (comma-separated) | `https://mailtrace.vercel.app,http://localhost:5173` |
+| `VITE_API_BASE_URL` | Frontend Only | Custom backend HTTPS URL (leave blank for same-origin) | `https://api.yourdomain.com` |
+| `OPENAI_API_KEY` | Backend Only | OpenAI API Key for advanced threat LLM | `sk-...` (optional) |
+| `IPINFO_TOKEN` | Backend Only | IPInfo token for IP intelligence | `...` (optional) |
+| `VIRUSTOTAL_API_KEY` | Backend Only | VirusTotal API Key for domain/URL reputation | `...` (optional) |
+| `ABUSEIPDB_API_KEY` | Backend Only | AbuseIPDB API Key for IP reputation | `...` (optional) |
+| `BLOCKCHAIN_ENABLED` | Backend Only | Enable tamper-evident blockchain commitments | `true` / `false` |
+| `BLOCKCHAIN_PROVIDER` | Backend Only | Provider mode | `mock`, `null`, `ethereum` |
 
 # Blockchain Evidence Anchoring (Optional - defaults to 'mock' for testing)
 BLOCKCHAIN_ENABLED=true

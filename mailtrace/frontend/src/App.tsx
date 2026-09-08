@@ -163,7 +163,7 @@ export const App: React.FC = () => {
         {!apiConnected && (
           <div className="mb-6">
             <Alert variant="warning" title="Backend Connection Offline">
-              The MailTrace FastAPI backend is unreachable at <code>http://localhost:8000</code>. Ensure the service is running (<code>uvicorn backend.main:app --port 8000</code>).
+              <span>The MailTrace backend API service is unreachable. Ensure the backend service is running and properly connected.</span>
             </Alert>
           </div>
         )}

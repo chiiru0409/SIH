@@ -10,9 +10,8 @@ PostgreSQL JSONB.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import String, Float, Integer, DateTime, Text
+from sqlalchemy import String, Float, Integer, DateTime, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.dialects.sqlite import JSON
 
 from backend.database import Base
 

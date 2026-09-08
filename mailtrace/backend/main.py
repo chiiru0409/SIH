@@ -5,11 +5,12 @@ Responsibilities:
   - Create and configure the FastAPI app instance.
   - Register all routers.
   - Run startup / shutdown lifecycle events (DB init, dir creation).
-  - Configure CORS for the React frontend.
+  - Configure robust CORS for frontend and deployment domains.
   - Provide a root redirect to /docs.
 """
 
 import logging
+import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -18,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
 from backend.config import settings
-from backend.database import init_db
+from backend.database import ACTIVE_DATABASE_URL, init_db, mask_database_url
 from backend.routes import health, analyze, correlation, evidence
 
 
@@ -45,13 +46,19 @@ async def lifespan(app: FastAPI):
 
     # Ensure upload and report directories exist
     for directory in (settings.UPLOAD_DIR, settings.REPORT_DIR):
-        Path(directory).mkdir(parents=True, exist_ok=True)
-        logger.info(f"  Directory ready: {directory}")
+        try:
+            Path(directory).mkdir(parents=True, exist_ok=True)
+            logger.info(f"  Directory ready: {directory}")
+        except Exception as exc:
+            logger.warning(f"  Directory warning for {directory}: {exc}")
 
     # Initialize database tables
     logger.info("  Initializing database …")
-    await init_db()
-    logger.info(f"  Database: {settings.DATABASE_URL}")
+    try:
+        await init_db()
+        logger.info(f"  Database connected: {mask_database_url(ACTIVE_DATABASE_URL)}")
+    except Exception as exc:
+        logger.error(f"  Database initialization warning: {exc}")
     logger.info("  Startup complete. MAILTRACE is ready.")
     logger.info("=" * 60)
 
@@ -79,26 +86,29 @@ app = FastAPI(
 
 
 # ------------------------------------------------------------------ #
-#  CORS                                                                #
+#  CORS Configuration                                                 #
 # ------------------------------------------------------------------ #
-# In development allow all origins so the React dev server (port 5173
-# or 3000) can call the API without proxy configuration.
-# Tighten this to specific origins in production.
-ALLOWED_ORIGINS = (
-    ["*"]
-    if settings.APP_ENV == "development"
-    else [
-        "https://mailtrace.yourdomain.com",  # replace before production deploy
-    ]
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+raw_cors = (settings.CORS_ORIGINS or "").strip()
+if raw_cors == "*" or not raw_cors:
+    # Open CORS (credentials False for wildcard standard compliance)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    # Specific origins
+    allowed_list = [origin.strip() for origin in raw_cors.split(",") if origin.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_list,
+        allow_origin_regex=r"^https:\/\/.*\.vercel\.app$",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 
 # ------------------------------------------------------------------ #

@@ -44,7 +44,7 @@ async def readiness_check(db: AsyncSession = Depends(get_db)) -> HealthResponse:
         await db.execute(text("SELECT 1"))
         db_status = "ok"
     except Exception as exc:
-        db_status = f"error: {exc}"
+        db_status = "unreachable" if settings.APP_ENV == "production" else f"error: {str(exc)}"
 
     return HealthResponse(
         status="ok" if db_status == "ok" else "degraded",
@@ -53,3 +53,4 @@ async def readiness_check(db: AsyncSession = Depends(get_db)) -> HealthResponse:
         environment=settings.APP_ENV,
         database=db_status,
     )
+

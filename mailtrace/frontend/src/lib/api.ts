@@ -1,6 +1,7 @@
 /**
  * api.ts — Centralized typed API client for MailTrace backend.
- * Uses VITE_API_BASE_URL (defaults to http://localhost:8000).
+ * Uses VITE_API_BASE_URL if configured.
+ * When not configured, uses same-origin relative endpoints ("").
  */
 
 import type {
@@ -16,7 +17,13 @@ import type {
   UploadResponse,
 } from '../types/api';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+const API_BASE_URL = rawBaseUrl ? rawBaseUrl.replace(/\/+$/, '') : '';
+
+function buildUrl(endpoint: string): string {
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${API_BASE_URL}${cleanEndpoint}`;
+}
 
 class ApiError extends Error {
   status: number;
@@ -33,7 +40,7 @@ class ApiError extends Error {
 }
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
+  const url = buildUrl(endpoint);
   try {
     const response = await fetch(url, {
       ...options,
@@ -66,8 +73,11 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
       throw error;
     }
     // Network / connection error
+    const connectionMsg = import.meta.env.PROD
+      ? 'Backend service unavailable. Please check network connection or try again shortly.'
+      : 'Backend service unreachable. Ensure the MailTrace backend is running.';
     throw new ApiError(
-      `Backend service unreachable (${API_BASE_URL}). Ensure the MailTrace backend is running.`,
+      connectionMsg,
       0,
       'NETWORK_ERROR',
       error.message

@@ -14,9 +14,8 @@ Hash Chaining:
 
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, DateTime, Text, Index
+from sqlalchemy import String, DateTime, Text, Index, JSON
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.dialects.sqlite import JSON
 
 from backend.database import Base
 
