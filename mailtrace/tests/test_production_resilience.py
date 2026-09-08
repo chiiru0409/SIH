@@ -241,3 +241,131 @@ async def test_e2e_phishing_eml_upload_and_persistence():
         cases_list = list_res.json()
         matching = [c for c in cases_list if c["case_id"] == case_id]
         assert len(matching) == 1
+
+
+# ------------------------------------------------------------------ #
+#  6. Casual Test EML Upload & Full Pipeline Tests                   #
+# ------------------------------------------------------------------ #
+
+@pytest.mark.asyncio
+async def test_casual_test_eml_upload_and_pipeline():
+    """Upload casual_test.eml and verify complete end-to-end pipeline execution."""
+    await init_db()
+    casual_eml = (
+        b"From: notifications@github-updates.com\n"
+        b"To: dev@example.com\n"
+        b"Subject: Notice: Security advisory detected in repository\n"
+        b"Date: Tue, 08 Sep 2026 13:00:00 +0000\n"
+        b"Message-ID: <sec-notice-999@github-updates.com>\n"
+        b"Content-Type: text/plain; charset=\"utf-8\"\n\n"
+        b"We identified a vulnerability in one of your dependencies.\n"
+        b"Please review details at https://github.com/advisories/GHSA-1234.\n"
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # 1. Upload
+        files = {"file": ("casual_test.eml", casual_eml, "message/rfc822")}
+        res = await client.post("/api/analyze/upload", files=files)
+        assert res.status_code == 200
+        data = res.json()
+        case_id = data["case_id"]
+        assert case_id
+        assert data["email"]["from"] == "notifications@github-updates.com"
+        assert data["email"]["subject"] == "Notice: Security advisory detected in repository"
+
+        # 2. Case correlation
+        corr_res = await client.get(f"/api/correlation/{case_id}")
+        assert corr_res.status_code == 200
+        corr_data = corr_res.json()
+        assert corr_data["case_id"] == case_id
+        assert "graph" in corr_data
+        assert "nodes" in corr_data["graph"]
+        assert "edges" in corr_data["graph"]
+
+        # 3. Evidence chain
+        chain_res = await client.get(f"/api/evidence/{case_id}/chain")
+        assert chain_res.status_code == 200
+        events = chain_res.json().get("events", [])
+        assert len(events) >= 3
+
+
+# ------------------------------------------------------------------ #
+#  7. Repeated Health & Readiness Stability (No Flapping)            #
+# ------------------------------------------------------------------ #
+
+@pytest.mark.asyncio
+async def test_repeated_health_stability():
+    """Verify repeated concurrent/sequential health and readiness checks remain stable."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        for _ in range(10):
+            h = await client.get("/api/health")
+            assert h.status_code == 200
+            assert h.json()["status"] == "ok"
+
+            r = await client.get("/api/health/ready")
+            assert r.status_code == 200
+            assert r.json()["status"] == "ok"
+            assert r.json()["db_info"]["connected"] is True
+
+
+# ------------------------------------------------------------------ #
+#  8. Multi-Case Correlation Integrity (0, 1, 2, Multiple Cases)      #
+# ------------------------------------------------------------------ #
+
+@pytest.mark.asyncio
+async def test_multi_case_correlation_scaling():
+    """Verify build_campaign_correlation correctly handles 0, 1, 2, and multiple cases without errors."""
+    from backend.services.correlation import build_campaign_correlation
+
+    # 0 cases
+    zero_res = build_campaign_correlation([])
+    assert zero_res["total_cases"] == 0
+    assert zero_res["total_campaigns"] == 0
+    assert zero_res["graph"]["nodes"] == []
+    assert zero_res["graph"]["edges"] == []
+
+    # 1 case
+    single_case = [{
+        "id": "case-single",
+        "original_filename": "single.eml",
+        "parsed_email": {
+            "sender": {"email": "attacker@evil.com"},
+            "domains": ["evil.com"],
+            "urls": [{"url": "http://evil.com/login"}],
+            "ip_addresses": [{"ip": "198.51.100.1"}],
+        },
+        "ip_intel": {"ips": [{"ip": "198.51.100.1", "classification": "public", "asn": {"asn": "AS12345"}}]},
+        "domain_intel": {"domains": [{"domain": "evil.com", "registrable_domain": "evil.com"}]},
+        "url_intel": {"urls": [{"url": "http://evil.com/login", "registrable_domain": "evil.com"}]},
+        "risk_score": 85.0,
+        "risk_label": "HIGH",
+    }]
+    one_res = build_campaign_correlation(single_case)
+    assert one_res["total_cases"] == 1
+    assert one_res["total_campaigns"] == 0  # Campaigns require >= 2 correlated cases
+    assert len(one_res["graph"]["nodes"]) >= 1
+
+    # 2 correlated cases
+    second_case = {
+        "id": "case-two",
+        "original_filename": "two.eml",
+        "parsed_email": {
+            "sender": {"email": "attacker@evil.com"},
+            "domains": ["evil.com"],
+            "urls": [{"url": "http://evil.com/login"}],
+            "ip_addresses": [{"ip": "198.51.100.1"}],
+        },
+        "ip_intel": {"ips": [{"ip": "198.51.100.1", "classification": "public", "asn": {"asn": "AS12345"}}]},
+        "domain_intel": {"domains": [{"domain": "evil.com", "registrable_domain": "evil.com"}]},
+        "url_intel": {"urls": [{"url": "http://evil.com/login", "registrable_domain": "evil.com"}]},
+        "risk_score": 90.0,
+        "risk_label": "CRITICAL",
+    }
+    two_res = build_campaign_correlation(single_case + [second_case])
+    assert two_res["total_cases"] == 2
+    assert two_res["total_campaigns"] == 1
+    assert len(two_res["correlations"]) == 1
+    assert two_res["correlations"][0]["correlation_score"] >= 50.0
+    assert len(two_res["graph"]["edges"]) >= 2

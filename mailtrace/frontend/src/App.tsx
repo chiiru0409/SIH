@@ -64,7 +64,11 @@ export const App: React.FC = () => {
         const healthRes = await checkHealth();
         setApiConnected(true);
         if (healthRes.db_info) {
-          setDbStatus(healthRes.db_info);
+          setDbStatus({
+            ...healthRes.db_info,
+            status: 'unreachable',
+            connected: false,
+          });
         }
       } catch {
         setApiConnected(false);

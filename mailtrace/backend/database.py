@@ -178,17 +178,29 @@ engine_kwargs: dict[str, Any] = {
     "future": True,
 }
 
+is_serverless = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+
 if ACTIVE_DATABASE_URL.startswith("postgresql+asyncpg"):
-    engine_kwargs.update({
-        "pool_pre_ping": True,
-        "pool_recycle": 300,
-        "pool_size": 10,
-        "max_overflow": 20,
-        "connect_args": {
-            "statement_cache_size": 0,
-            "prepared_statement_cache_size": 0,
-        },
-    })
+    if is_serverless:
+        from sqlalchemy.pool import NullPool
+        engine_kwargs.update({
+            "poolclass": NullPool,
+            "connect_args": {
+                "statement_cache_size": 0,
+                "prepared_statement_cache_size": 0,
+            },
+        })
+    else:
+        engine_kwargs.update({
+            "pool_pre_ping": True,
+            "pool_recycle": 300,
+            "pool_size": 10,
+            "max_overflow": 20,
+            "connect_args": {
+                "statement_cache_size": 0,
+                "prepared_statement_cache_size": 0,
+            },
+        })
 elif ACTIVE_DATABASE_URL.startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False}
 
@@ -216,7 +228,14 @@ class Base(DeclarativeBase):
 # ------------------------------------------------------------------ #
 
 _db_initialized = False
-_init_lock = asyncio.Lock()
+_init_lock: asyncio.Lock | None = None
+
+
+def _get_init_lock() -> asyncio.Lock:
+    global _init_lock
+    if _init_lock is None:
+        _init_lock = asyncio.Lock()
+    return _init_lock
 
 
 async def init_db() -> None:
@@ -264,7 +283,8 @@ async def ensure_db_initialized() -> None:
     """Thread-safe and async-safe lazy schema initialization."""
     global _db_initialized
     if not _db_initialized:
-        async with _init_lock:
+        lock = _get_init_lock()
+        async with lock:
             if not _db_initialized:
                 await init_db()
 
