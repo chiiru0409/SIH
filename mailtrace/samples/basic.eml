@@ -1,0 +1,39 @@
+From: Alice Johnson <alice@example.com>
+To: Bob Smith <bob@company.org>
+Subject: Project Update - Q3 Review
+Date: Mon, 08 Sep 2026 09:15:00 +0530
+Message-ID: <20260908091500.basic001@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+Received: from mail.example.com (mail.example.com [45.33.32.156])
+        by mx.company.org (Postfix) with ESMTP id A1B2C3D4E5
+        for <bob@company.org>; Mon, 08 Sep 2026 09:15:02 +0530
+Received: from smtp.isp-provider.net (smtp.isp-provider.net [104.21.45.20])
+        by mail.example.com (Postfix) with ESMTP id F6G7H8I9J0
+        for <alice@example.com>; Mon, 08 Sep 2026 09:14:58 +0530
+Authentication-Results: mx.company.org;
+        spf=pass (sender IP is 45.33.32.156) smtp.mailfrom=alice@example.com;
+        dkim=pass header.d=example.com header.s=default;
+        dmarc=pass action=none header.from=example.com
+Received-SPF: pass (mx.company.org: domain of alice@example.com designates 45.33.32.156 as permitted sender) client-ip=45.33.32.156;
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=example.com; s=default;
+        h=from:to:subject:date:message-id;
+        bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=;
+        b=AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcdefghijklmnopqrstuvwxyz==
+
+Hi Bob,
+
+I wanted to share a quick update on the Q3 project review.
+
+The deliverables for this quarter are on track:
+- Design phase: completed
+- Development: 85% complete
+- Testing: starting next week
+
+Please let me know if you have any questions or need additional information.
+
+Best regards,
+Alice Johnson
+Project Manager
+alice@example.com

@@ -1,0 +1,73 @@
+From: =?UTF-8?Q?Newsletter_Team?= <newsletter@techdigest.io>
+To: subscriber@reader.com
+Cc: archive@techdigest.io
+Subject: =?UTF-8?B?8J+agiBUZWNoRGlnZXN0IFdlZWtseTogQUkgRm9yZW5zaWNz?=
+Date: Mon, 08 Sep 2026 08:00:00 +0000
+Message-ID: <20260908080000.multipart42@techdigest.io>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="===============MAILTRACE_BOUNDARY_001=="
+Received: from mail.techdigest.io (mail.techdigest.io [192.0.2.55])
+        by mx.reader.com (Postfix) with ESMTPS id 1A2B3C4D
+        for <subscriber@reader.com>; Mon, 08 Sep 2026 08:00:03 +0000
+Received: from sendgrid-relay.techdigest.io (sendgrid-relay.techdigest.io [209.85.220.41])
+        by mail.techdigest.io (Postfix) with ESMTP id 5E6F7G8H
+        for <newsletter@techdigest.io>; Mon, 08 Sep 2026 07:59:58 +0000
+Authentication-Results: mx.reader.com;
+        spf=pass smtp.mailfrom=newsletter@techdigest.io;
+        dkim=pass header.d=techdigest.io header.s=s2026;
+        dmarc=pass header.from=techdigest.io
+Received-SPF: pass (mx.reader.com: domain of newsletter@techdigest.io designates 192.0.2.55 as permitted sender)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=techdigest.io; s=s2026;
+        bh=base64hashgoeshere==; b=signaturegoeshere==
+
+--===============MAILTRACE_BOUNDARY_001==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+TechDigest Weekly — AI Forensics Edition
+
+Hello subscriber,
+
+This week we cover:
+1. AI in Digital Forensics
+2. Email threat detection advances
+3. NetworkX for threat graphs
+
+Read more at: https://techdigest.io/weekly/2026-09-08
+Unsubscribe: https://techdigest.io/unsubscribe?id=abc123
+
+--===============MAILTRACE_BOUNDARY_001==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+<!DOCTYPE html>
+<html>
+<head><title>TechDigest Weekly</title></head>
+<body style="font-family:Georgia,serif;max-width:600px;margin:0 auto;">
+  <header style="background:#1a1a2e;color:#00d4ff;padding:20px;text-align:center;">
+    <h1>TechDigest Weekly</h1>
+    <p>AI &amp; Forensics Edition — September 2026</p>
+  </header>
+  <main style="padding:20px;">
+    <h2>AI in Digital Forensics</h2>
+    <p>Artificial intelligence is revolutionising digital forensics. 
+    Tools like <a href="https://techdigest.io/articles/ai-forensics">MailTrace</a> 
+    now automatically classify threat patterns from email headers.</p>
+
+    <h2>Email Threat Detection</h2>
+    <p>Read our deep-dive at 
+    <a href="https://techdigest.io/weekly/2026-09-08">this week's issue</a>.</p>
+
+    <h2>NetworkX for Threat Graphs</h2>
+    <p>Graph-based correlation using 
+    <a href="https://networkx.org">NetworkX</a> enables 
+    campaign detection across hundreds of phishing emails.</p>
+  </main>
+  <footer style="background:#f4f4f4;padding:15px;text-align:center;font-size:12px;">
+    <a href="https://techdigest.io/unsubscribe?id=abc123">Unsubscribe</a> |
+    <a href="https://techdigest.io/privacy">Privacy Policy</a>
+  </footer>
+</body>
+</html>
+
+--===============MAILTRACE_BOUNDARY_001==--

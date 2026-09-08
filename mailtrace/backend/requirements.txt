@@ -1,0 +1,44 @@
+# MAILTRACE Backend Dependencies
+# FastAPI core
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+
+# Database
+sqlalchemy==2.0.31
+aiosqlite==0.20.0
+
+# File handling / parsing
+python-multipart==0.0.9
+aiofiles==23.2.1
+
+# Email parsing (stdlib email is sufficient; chardet helps with encoding)
+chardet==5.2.0
+
+# HTTP client (for external enrichment APIs in later phases)
+httpx==0.27.0
+
+# Pydantic settings (environment variable management)
+pydantic-settings==2.3.4
+
+# DNS lookups (Phase 5 - domain intelligence)
+dnspython==2.6.1
+
+# WHOIS (Phase 5 - domain intelligence)
+python-whois==0.9.4
+
+# GeoIP (Phase 5 - IP intelligence)
+# Uses the free MaxMind GeoLite2 DB or ip-api.com as fallback
+geoip2==4.8.0
+
+# NetworkX for graph correlation (Phase 7)
+networkx==3.3
+
+# Report generation (Phase 8)
+jinja2==3.1.4
+weasyprint==62.3
+
+# Hashing / evidence integrity (Phase 9)
+# hashlib is stdlib; no extra package needed
+
+# Development utilities
+python-dotenv==1.0.1

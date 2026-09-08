@@ -1,0 +1,54 @@
+From: "Security Team" <security-noreply@paypa1-secure.com>
+To: victim@targetbank.com
+Subject: =?UTF-8?B?VVJHRU5UOiBZb3VyIGFjY291bnQgaGFzIGJlZW4gc3VzcGVuZGVk?=
+Date: Mon, 08 Sep 2026 03:22:11 +0000
+Message-ID: <20260908032211.phish999@paypa1-secure.com>
+Reply-To: "Support" <collect-creds@malicious-harvest.net>
+Return-Path: <bounce@totally-different-domain.ru>
+MIME-Version: 1.0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+X-Originating-IP: 185.220.101.45
+X-Mailer: PHPMailer 5.2.0
+Received: from vps-node-23.bulletproof-host.ru (vps-node-23.bulletproof-host.ru [185.220.101.45])
+        by inbound.targetbank.com (Postfix) with SMTP id BB99AA77
+        for <victim@targetbank.com>; Mon, 08 Sep 2026 03:22:14 +0000
+Received: from localhost (localhost [127.0.0.1])
+        by vps-node-23.bulletproof-host.ru (Postfix) with ESMTP id CC11DD22
+        for <victim@targetbank.com>; Mon, 08 Sep 2026 03:22:10 +0000
+Authentication-Results: inbound.targetbank.com;
+        spf=fail (domain of paypa1-secure.com does not designate 185.220.101.45 as permitted sender) smtp.mailfrom=security-noreply@paypa1-secure.com;
+        dkim=none;
+        dmarc=fail (p=REJECT) header.from=paypa1-secure.com
+
+<!DOCTYPE html>
+<html>
+<head><title>Account Security Notice</title></head>
+<body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:20px;">
+<div style="background:#003087;color:white;padding:15px;text-align:center;">
+  <h2>PayPal Security Center</h2>
+</div>
+<div style="background:white;padding:20px;margin-top:10px;">
+  <p>Dear Customer,</p>
+  <p><strong>Your account has been SUSPENDED</strong> due to suspicious activity detected from your IP address.</p>
+  <p>You must verify your identity within <strong>24 hours</strong> or your account will be permanently closed.</p>
+  <p>Click the link below to verify your account immediately:</p>
+  <p style="text-align:center;">
+    <a href="http://paypa1-secure.com/verify/account?token=xK9mN2pQ&redirect=steal-creds" 
+       style="background:#003087;color:white;padding:10px 20px;text-decoration:none;">
+       Verify My Account Now
+    </a>
+  </p>
+  <p>You may also be asked to provide:</p>
+  <ul>
+    <li>Full name and date of birth</li>
+    <li>Credit card number and CVV</li>
+    <li>Social Security Number</li>
+    <li>Online banking password</li>
+  </ul>
+  <p>If you do not verify within 24 hours, your account will be locked.</p>
+  <p>For assistance visit: http://paypa1-secure.com/help or call 1-800-FAKE-NUM</p>
+  <p>Additional verification: https://malicious-harvest.net/phish/step2?victim=targetbank</p>
+</div>
+</body>
+</html>

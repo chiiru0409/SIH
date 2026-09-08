@@ -1,0 +1,52 @@
+From: "Finance Department" <finance@corp-internal.com>
+To: accounts@corp-internal.com
+Subject: Invoice #INV-2026-0042 - Please Review
+Date: Mon, 08 Sep 2026 11:30:00 +0530
+Message-ID: <20260908113000.attach001@corp-internal.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============MAILTRACE_ATTACH_001=="
+Received: from mail.corp-internal.com (mail.corp-internal.com [10.0.0.5])
+        by mx.corp-internal.com (Postfix) with ESMTP id 99887766
+        for <accounts@corp-internal.com>; Mon, 08 Sep 2026 11:30:02 +0530
+Received: from workstation-42.corp-internal.com (workstation-42 [10.0.0.42])
+        by mail.corp-internal.com (Postfix) with ESMTP id AABBCCDD
+        for <finance@corp-internal.com>; Mon, 08 Sep 2026 11:30:00 +0530
+Authentication-Results: mx.corp-internal.com;
+        spf=pass smtp.mailfrom=finance@corp-internal.com;
+        dkim=pass header.d=corp-internal.com;
+        dmarc=pass header.from=corp-internal.com
+
+--===============MAILTRACE_ATTACH_001==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Hello Accounts Team,
+
+Please find attached Invoice #INV-2026-0042 for the September services rendered.
+
+Details:
+- Amount: $4,250.00
+- Due Date: 30 September 2026
+- Reference: PROJECT-MAILTRACE-Q3
+
+Payment portal: https://corp-internal.com/payments/portal
+For queries: finance@corp-internal.com
+
+Please process at your earliest convenience.
+
+Regards,
+Finance Department
+
+--===============MAILTRACE_ATTACH_001==
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="INV-2026-0042.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2Jq
+CjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2Jq
+CjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIg
+NzkyXSA+PgplbmRvYmoKeHJlZgowIDQKMDAwMDAwMDAwMCA2NTUzNSBmCjAwMDAwMDAwMDkgMDAw
+MDAgbgowMDAwMDAwMDU4IDAwMDAwIG4KMDAwMDAwMDExNSAwMDAwMCBuCnRyYWlsZXIKPDwgL1Np
+emUgNCAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKMTkwCiUlRU9G
+
+--===============MAILTRACE_ATTACH_001==--

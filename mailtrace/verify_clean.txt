@@ -1,0 +1,328 @@
+MAILTRACE -- STEP 2 FINAL VERIFICATION
+==============================================================
+
+==============================================================
+  0. STARTING SERVER
+==============================================================
+  [PASS]  Server ready at http://127.0.0.1:8000
+
+==============================================================
+  1. HEALTH CHECKS
+==============================================================
+  [PASS]  GET /api/health
+         Response: {"status": "ok", "app": "MAILTRACE", "version": "0.1.0", "environment": "development", "database": "not_checked"}
+  [PASS]  GET /api/health/ready
+         Response: {"status": "ok", "app": "MAILTRACE", "version": "0.1.0", "environment": "development", "database": "ok"}
+
+==============================================================
+  2. LIVE UPLOADS  --  POST /api/analyze/upload
+==============================================================
+  [PASS]  basic.eml  -->  HTTP 200  case_id=f83dcec5...
+         status          : parsed
+         from            : alice@example.com
+         to              : ['bob@company.org']
+         subject         : Project Update - Q3 Review
+         date            : 2026-09-08T09:15:00+05:30
+         message_id      : <20260908091500.basic001@example.com>
+         spf/dkim/dmarc  : pass / pass / pass
+         smtp hops       : 2
+         public IPs      : ['104.21.45.20', '45.33.32.156']
+         domains         : ['example.com']
+         urls            : 0 extracted
+         attachments     : []
+         reply_to_mismatch  : False
+         return_path_mismatch: False
+         sha256          : b5e1078580a649559c1997d5d8b44a51...  [MATCH]
+
+  [PASS]  phishing.eml  -->  HTTP 200  case_id=62171cf1...
+         status          : parsed
+         from            : security-noreply@paypa1-secure.com
+         to              : ['victim@targetbank.com']
+         subject         : URGENT: Your account has been suspended
+         date            : 2026-09-08T03:22:11+00:00
+         message_id      : <20260908032211.phish999@paypa1-secure.com>
+         spf/dkim/dmarc  : fail / none / fail
+         smtp hops       : 2
+         public IPs      : ['185.220.101.45']
+         domains         : ['malicious-harvest.net', 'paypa1-secure.com', 'totally-different-domain.ru']
+         urls            : 3 extracted
+         attachments     : []
+         reply_to_mismatch  : True
+         return_path_mismatch: True
+         sha256          : 084131a20dce515fce2ea4845585ca39...  [MATCH]
+
+  [PASS]  multipart.eml  -->  HTTP 200  case_id=293ecfdf...
+         status          : parsed
+         from            : newsletter@techdigest.io
+         to              : ['subscriber@reader.com']
+         subject         : 🚂 TechDigest Weekly: AI Forensics
+         date            : 2026-09-08T08:00:00+00:00
+         message_id      : <20260908080000.multipart42@techdigest.io>
+         spf/dkim/dmarc  : pass / pass / pass
+         smtp hops       : 2
+         public IPs      : ['209.85.220.41']
+         domains         : ['networkx.org', 'techdigest.io']
+         urls            : 5 extracted
+         attachments     : []
+         reply_to_mismatch  : False
+         return_path_mismatch: False
+         sha256          : f665310a9f2c4d2760c2db0237673dd2...  [MATCH]
+
+  [PASS]  attachment.eml  -->  HTTP 200  case_id=102f5852...
+         status          : parsed
+         from            : finance@corp-internal.com
+         to              : ['accounts@corp-internal.com']
+         subject         : Invoice #INV-2026-0042 - Please Review
+         date            : 2026-09-08T11:30:00+05:30
+         message_id      : <20260908113000.attach001@corp-internal.com>
+         spf/dkim/dmarc  : pass / pass / pass
+         smtp hops       : 2
+         public IPs      : []
+         domains         : ['corp-internal.com']
+         urls            : 1 extracted
+         attachments     : ['INV-2026-0042.pdf']
+         reply_to_mismatch  : False
+         return_path_mismatch: False
+         sha256          : e130fabd8f6a8fc8fd7af374020c2684...  [MATCH]
+
+
+==============================================================
+  3. DATABASE VERIFICATION
+==============================================================
+  Rows in DB (last 20): 19
+  [PASS]  attachment.eml  |  status=parsed  |  sha256=e130fabd8f6a8fc8... [MATCH]
+         case_id  : 102f5852-ac2e-48ce-aaf0-b403c28f2406
+         created  : 2026-09-08 06:13:41.126030
+  [PASS]  multipart.eml  |  status=parsed  |  sha256=f665310a9f2c4d27... [MATCH]
+         case_id  : 293ecfdf-bece-4e9a-8623-e6f55a0a3c5f
+         created  : 2026-09-08 06:13:40.827574
+  [PASS]  phishing.eml  |  status=parsed  |  sha256=084131a20dce515f... [MATCH]
+         case_id  : 62171cf1-8897-408c-89a0-207f786e46da
+         created  : 2026-09-08 06:13:40.488646
+  [PASS]  basic.eml  |  status=parsed  |  sha256=b5e1078580a64955... [MATCH]
+         case_id  : f83dcec5-e824-4ae2-aa97-62a5b38f324f
+         created  : 2026-09-08 06:13:39.936224
+  [PASS]  min.eml  |  status=parsed  |  sha256=95e77b911ca69651...  [pre-existing]
+         case_id  : 8f058786-c294-4aa0-b3da-ab3aa74df420
+         created  : 2026-09-08 06:13:05.178845
+  [PASS]  corrupt.eml  |  status=parsed  |  sha256=743ee2bf63ca1061...  [pre-existing]
+         case_id  : 6853efa9-fffa-47a2-8f72-c3b4648582ed
+         created  : 2026-09-08 06:13:04.785337
+  [PASS]  attachment.eml  |  status=parsed  |  sha256=e130fabd8f6a8fc8... [MATCH]
+         case_id  : e5b3640f-ca1b-480c-ae33-7a5c055ac62c
+         created  : 2026-09-08 06:13:02.480199
+  [PASS]  multipart.eml  |  status=parsed  |  sha256=f665310a9f2c4d27... [MATCH]
+         case_id  : 37be12a7-5fd8-4f21-b5ee-e6b76e4ce059
+         created  : 2026-09-08 06:13:01.952860
+  [PASS]  phishing.eml  |  status=parsed  |  sha256=084131a20dce515f... [MATCH]
+         case_id  : 4fd1a93a-2cda-4bfd-9464-e2cfbaf2f82f
+         created  : 2026-09-08 06:13:01.583017
+  [PASS]  basic.eml  |  status=parsed  |  sha256=b5e1078580a64955... [MATCH]
+         case_id  : 7c00512e-7244-46ba-b14e-2901d380308b
+         created  : 2026-09-08 06:13:01.232991
+  [PASS]  multipart.eml  |  status=parsed  |  sha256=f665310a9f2c4d27... [MATCH]
+         case_id  : 0cef160a-577b-44f1-a76b-be91f145a1ff
+         created  : 2026-09-08 06:12:42.772495
+  [PASS]  phishing.eml  |  status=parsed  |  sha256=084131a20dce515f... [MATCH]
+         case_id  : 998678f4-28bf-405c-be2e-b8218189c861
+         created  : 2026-09-08 06:12:42.409082
+  [PASS]  basic.eml  |  status=parsed  |  sha256=b5e1078580a64955... [MATCH]
+         case_id  : 4c8d06f2-ef2f-4862-817e-c33a2c482631
+         created  : 2026-09-08 06:12:42.085296
+  [PASS]  bad.eml  |  status=parsed  |  sha256=c98c87666c11610c...  [pre-existing]
+         case_id  : dd5986e9-f622-4a2e-b50a-9776ca3673f0
+         created  : 2026-09-08 05:28:47.808699
+  [PASS]  corrupt.eml  |  status=parsed  |  sha256=970ec6ecfef8b6e3...  [pre-existing]
+         case_id  : 497c8aa3-d8dc-4740-b8a4-406afc65ffad
+         created  : 2026-09-08 05:28:45.991004
+  [PASS]  attachment.eml  |  status=parsed  |  sha256=e130fabd8f6a8fc8... [MATCH]
+         case_id  : f4201d4b-af65-442a-b72f-b37bdabb40ca
+         created  : 2026-09-08 05:28:39.222252
+  [PASS]  multipart.eml  |  status=parsed  |  sha256=f665310a9f2c4d27... [MATCH]
+         case_id  : 05ba6a3a-840e-4668-ab67-fea7742dfb60
+         created  : 2026-09-08 05:28:38.301362
+  [PASS]  phishing.eml  |  status=parsed  |  sha256=084131a20dce515f... [MATCH]
+         case_id  : 01d785fb-11c1-46b7-bc0e-0c7f42ac9069
+         created  : 2026-09-08 05:28:37.837226
+  [PASS]  basic.eml  |  status=parsed  |  sha256=b5e1078580a64955... [MATCH]
+         case_id  : b3087264-6309-4c8b-aef7-06c2a719f862
+         created  : 2026-09-08 05:28:37.431674
+
+==============================================================
+  4. CASE ENDPOINTS
+==============================================================
+  [PASS]  GET /api/analyze/cases  -->  19 case(s)
+         102f5852...  attachment.eml  status=parsed
+         293ecfdf...  multipart.eml  status=parsed
+         62171cf1...  phishing.eml  status=parsed
+         f83dcec5...  basic.eml  status=parsed
+  [PASS]  GET /api/analyze/f83dcec5...  -->  200 OK
+         filename      : basic.eml
+         status        : parsed
+         evidence_hash : b5e1078580a649559c1997d5d8b44a51...
+         sender        : alice@example.com
+         subject       : Project Update - Q3 Review
+         domains       : ['example.com']
+  [PASS]  GET /api/analyze/nonexistent  -->  404 (correct)
+
+==============================================================
+  5. SECURITY CHECKS
+==============================================================
+  [PASS]  Non-.eml file rejected  -->  HTTP 422
+         code: INVALID_FILE_TYPE
+  [PASS]  Empty file rejected  -->  HTTP 422
+  [PASS]  Malformed .eml handled gracefully  -->  HTTP 200 (not 500)
+  [PASS]  No Python stack trace in API response
+  [PASS]  Suspicious URLs not fetched  (no HTTP calls in parser module)
+  [PASS]  Attachments not executed  (parser reads bytes for SHA-256 only)
+
+==============================================================
+  6. FULL TEST SUITE  (pytest tests/test_parser.py)
+==============================================================
+============================= test session starts =============================
+collecting ... collected 91 items
+
+tests/test_parser.py::TestSenderExtraction::test_sender_email PASSED     [  1%]
+tests/test_parser.py::TestSenderExtraction::test_sender_display_name PASSED [  2%]
+tests/test_parser.py::TestSenderExtraction::test_sender_domain PASSED    [  3%]
+tests/test_parser.py::TestSenderExtraction::test_sender_not_none PASSED  [  4%]
+tests/test_parser.py::TestSenderExtraction::test_phishing_sender_domain PASSED [  5%]
+tests/test_parser.py::TestRecipientExtraction::test_to_list_not_empty PASSED [  6%]
+tests/test_parser.py::TestRecipientExtraction::test_to_email PASSED      [  7%]
+tests/test_parser.py::TestRecipientExtraction::test_to_domain PASSED     [  8%]
+tests/test_parser.py::TestRecipientExtraction::test_cc_populated PASSED  [  9%]
+tests/test_parser.py::TestRecipientExtraction::test_bcc_empty_when_absent PASSED [ 10%]
+tests/test_parser.py::TestSubjectExtraction::test_basic_subject PASSED   [ 12%]
+tests/test_parser.py::TestSubjectExtraction::test_phishing_subject_decoded PASSED [ 13%]
+tests/test_parser.py::TestSubjectExtraction::test_multipart_subject_decoded PASSED [ 14%]
+tests/test_parser.py::TestSubjectExtraction::test_message_id_present PASSED [ 15%]
+tests/test_parser.py::TestReceivedChain::test_hop_count_basic PASSED     [ 16%]
+tests/test_parser.py::TestReceivedChain::test_relay_chain_not_empty PASSED [ 17%]
+tests/test_parser.py::TestReceivedChain::test_chain_has_from_ip PASSED   [ 18%]
+tests/test_parser.py::TestReceivedChain::test_earliest_node_present PASSED [ 19%]
+tests/test_parser.py::TestReceivedChain::test_public_ips_extracted PASSED [ 20%]
+tests/test_parser.py::TestReceivedChain::test_phishing_public_ip PASSED  [ 21%]
+tests/test_parser.py::TestReceivedChain::test_confidence_note_present PASSED [ 23%]
+tests/test_parser.py::TestReceivedChain::test_multipart_hop_count PASSED [ 24%]
+tests/test_parser.py::TestAuthentication::test_spf_pass_basic PASSED     [ 25%]
+tests/test_parser.py::TestAuthentication::test_dkim_pass_basic PASSED    [ 26%]
+tests/test_parser.py::TestAuthentication::test_dmarc_pass_basic PASSED   [ 27%]
+tests/test_parser.py::TestAuthentication::test_spf_fail_phishing PASSED  [ 28%]
+tests/test_parser.py::TestAuthentication::test_dkim_none_phishing PASSED [ 29%]
+tests/test_parser.py::TestAuthentication::test_dmarc_fail_phishing PASSED [ 30%]
+tests/test_parser.py::TestAuthentication::test_dkim_domain_extracted PASSED [ 31%]
+tests/test_parser.py::TestAuthentication::test_no_auth_results_raw_in_phishing PASSED [ 32%]
+tests/test_parser.py::TestAuthentication::test_spf_raw_preserved PASSED  [ 34%]
+tests/test_parser.py::TestAuthentication::test_dkim_raw_preserved PASSED [ 35%]
+tests/test_parser.py::TestUrlExtraction::test_urls_extracted_from_phishing_html PASSED [ 36%]
+tests/test_parser.py::TestUrlExtraction::test_url_has_scheme PASSED      [ 37%]
+tests/test_parser.py::TestUrlExtraction::test_url_has_domain PASSED      [ 38%]
+tests/test_parser.py::TestUrlExtraction::test_url_has_source PASSED      [ 39%]
+tests/test_parser.py::TestUrlExtraction::test_multipart_urls_from_html PASSED [ 40%]
+tests/test_parser.py::TestUrlExtraction::test_basic_no_urls PASSED       [ 41%]
+tests/test_parser.py::TestUrlExtraction::test_urls_deduplicated PASSED   [ 42%]
+tests/test_parser.py::TestUrlExtraction::test_url_extraction_from_text_direct PASSED [ 43%]
+tests/test_parser.py::TestUrlExtraction::test_url_extraction_from_html_direct PASSED [ 45%]
+tests/test_parser.py::TestDomainExtraction::test_sender_domain_in_domains PASSED [ 46%]
+tests/test_parser.py::TestDomainExtraction::test_phishing_sender_domain_in_domains PASSED [ 47%]
+tests/test_parser.py::TestDomainExtraction::test_domains_deduplicated PASSED [ 48%]
+tests/test_parser.py::TestDomainExtraction::test_domains_lowercase PASSED [ 49%]
+tests/test_parser.py::TestDomainExtraction::test_collect_all_domains_helper PASSED [ 50%]
+tests/test_parser.py::TestIpExtraction::test_ips_extracted_basic PASSED  [ 51%]
+tests/test_parser.py::TestIpExtraction::test_public_ip_basic PASSED      [ 52%]
+tests/test_parser.py::TestIpExtraction::test_classify_public PASSED      [ 53%]
+tests/test_parser.py::TestIpExtraction::test_classify_private PASSED     [ 54%]
+tests/test_parser.py::TestIpExtraction::test_classify_loopback PASSED    [ 56%]
+tests/test_parser.py::TestIpExtraction::test_classify_unknown PASSED     [ 57%]
+tests/test_parser.py::TestIpExtraction::test_extract_ips_from_text PASSED [ 58%]
+tests/test_parser.py::TestIpExtraction::test_no_duplicate_ips PASSED     [ 59%]
+tests/test_parser.py::TestIpExtraction::test_annotate_ip PASSED          [ 60%]
+tests/test_parser.py::TestIpExtraction::test_phishing_originating_ip PASSED [ 61%]
+tests/test_parser.py::TestIpExtraction::test_x_originating_ip_header PASSED [ 62%]
+tests/test_parser.py::TestAttachments::test_attachment_detected PASSED   [ 63%]
+tests/test_parser.py::TestAttachments::test_attachment_filename PASSED   [ 64%]
+tests/test_parser.py::TestAttachments::test_attachment_content_type PASSED [ 65%]
+tests/test_parser.py::TestAttachments::test_attachment_size_positive PASSED [ 67%]
+tests/test_parser.py::TestAttachments::test_attachment_sha256_present PASSED [ 68%]
+tests/test_parser.py::TestAttachments::test_attachment_sha256_correct PASSED [ 69%]
+tests/test_parser.py::TestAttachments::test_no_attachments_basic PASSED  [ 70%]
+tests/test_parser.py::TestEvidence::test_sha256_bytes_correct PASSED     [ 71%]
+tests/test_parser.py::TestEvidence::test_sha256_string_correct PASSED    [ 72%]
+tests/test_parser.py::TestEvidence::test_sha256_dict_stable PASSED       [ 73%]
+tests/test_parser.py::TestEvidence::test_sha256_dict_changes_with_data PASSED [ 74%]
+tests/test_parser.py::TestEvidence::test_build_evidence_record PASSED    [ 75%]
+tests/test_parser.py::TestEvidence::test_file_sha256_matches_manual PASSED [ 76%]
+tests/test_parser.py::TestEvidence::test_verify_bytes_hash PASSED        [ 78%]
+tests/test_parser.py::TestMalformedHandling::test_empty_bytes_does_not_crash PASSED [ 79%]
+tests/test_parser.py::TestMalformedHandling::test_empty_bytes_no_fatal_crash PASSED [ 80%]
+tests/test_parser.py::TestMalformedHandling::test_random_bytes_does_not_crash PASSED [ 81%]
+tests/test_parser.py::TestMalformedHandling::test_minimal_headers_only PASSED [ 82%]
+tests/test_parser.py::TestMalformedHandling::test_missing_optional_headers PASSED [ 83%]
+tests/test_parser.py::TestMalformedHandling::test_no_auth_headers PASSED [ 84%]
+tests/test_parser.py::TestMalformedHandling::test_no_received_headers PASSED [ 85%]
+tests/test_parser.py::TestMalformedHandling::test_unicode_subject PASSED [ 86%]
+tests/test_parser.py::TestMalformedHandling::test_no_crash_html_only PASSED [ 87%]
+tests/test_parser.py::TestMalformedHandling::test_html_to_text_direct PASSED [ 89%]
+tests/test_parser.py::TestMismatchIndicators::test_reply_to_mismatch_phishing PASSED [ 90%]
+tests/test_parser.py::TestMismatchIndicators::test_return_path_mismatch_phishing PASSED [ 91%]
+tests/test_parser.py::TestMismatchIndicators::test_no_mismatch_basic PASSED [ 92%]
+tests/test_parser.py::TestMismatchIndicators::test_missing_message_id_phishing PASSED [ 93%]
+tests/test_parser.py::TestMultipart::test_is_multipart PASSED            [ 94%]
+tests/test_parser.py::TestMultipart::test_plain_body_present PASSED      [ 95%]
+tests/test_parser.py::TestMultipart::test_html_body_present PASSED       [ 96%]
+tests/test_parser.py::TestMultipart::test_normalized_body_present PASSED [ 97%]
+tests/test_parser.py::TestMultipart::test_multipart_domains_include_techdigest PASSED [ 98%]
+tests/test_parser.py::TestMultipart::test_extract_domain_from_email_helper PASSED [100%]
+
+============================= 91 passed in 0.15s ==============================
+
+  [PASS]  91 tests passed  --  EXIT_CODE=0
+
+==============================================================
+  STEP 2 COMPLETION REPORT
+==============================================================
+  [PASS]  Health endpoints (GET /api/health, /ready)
+  [PASS]  Live uploads -- 4 .eml files, HTTP 200, SHA-256 match
+  [PASS]  Database persistence (all 4 cases stored)
+  [PASS]  SHA-256 integrity (DB hash == file hash)
+  [PASS]  Case endpoints (GET /cases, GET /{id}, 404 on unknown)
+  [PASS]  Security checks (reject non-.eml, empty, malformed, no traces)
+  [PASS]  Parser test suite 91/91
+
+  STEP 2 STATUS: PASS
+
+
+FILES CREATED:
+  backend/utils/ip_utils.py
+  backend/utils/url_utils.py
+  backend/services/evidence.py
+  backend/services/email_parser.py
+  samples/basic.eml
+  samples/phishing.eml
+  samples/multipart.eml
+  samples/attachment.eml
+  tests/__init__.py
+  tests/test_parser.py
+
+FILES MODIFIED:
+  backend/schemas/analysis.py   -- added UploadResponse schema
+  backend/routes/analyze.py     -- replaced 3 stubs with full implementation
+  samples/basic.eml             -- updated to real public IPs (not RFC-5737)
+
+NOT MODIFIED (Step 1 preserved intact):
+  backend/main.py  /  backend/config.py  /  backend/database.py
+  backend/models/analysis.py  /  backend/routes/health.py
+
+KNOWN LIMITATIONS:
+  - Authentication headers PARSED only; live cryptographic SPF/DKIM/DMARC
+    validation is Phase 3.
+  - GeoIP, ASN, country/city fields are None placeholders until Phase 5.
+  - URL and IP reputation not checked until Phase 5.
+  - AI threat classification not implemented until Phase 4.
+  - RFC-5737 TEST-NET IPs (203.0.113.x, 198.51.100.x) are correctly
+    classified 'reserved' by Python stdlib -- not 'public'.
+    Sample emails use real routable IPs.
+  - Blockchain evidence anchoring is a Phase 9 extension point.
+
+NEXT STEP:
+  STEP 3 -- Deep Forensic Analysis and Authentication Validation

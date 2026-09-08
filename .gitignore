@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Environment Variables
+.env
+.env.*
+!.env.example
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Runtime uploaded samples (preserve test fixtures)
+mailtrace/samples/*.eml
+!mailtrace/samples/basic.eml
+!mailtrace/samples/phishing.eml
+!mailtrace/samples/multipart.eml
+!mailtrace/samples/attachment.eml
+
+# Reports
+mailtrace/reports/*.pdf
+mailtrace/reports/*.json
+
+# Node / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+frontend/dist/
+frontend/build/
+
+# Test caches & logs
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+*test_output*.txt
+*verify_output*.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
