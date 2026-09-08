@@ -154,9 +154,9 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
   };
 
   const isVerified = verification ? verification.valid : (manifest?.integrity_status === 'verified');
-  const fileHash = manifest?.file_sha256 || initialEvidenceHash || '';
-  const parsedHash = manifest?.parsed_evidence_sha256 || '';
-  const analysisHash = manifest?.analysis_sha256 || '';
+  const fileHash = typeof manifest?.file_sha256 === 'string' ? manifest.file_sha256 : (typeof initialEvidenceHash === 'string' ? initialEvidenceHash : (manifest?.file_sha256 ? String(manifest.file_sha256) : ''));
+  const parsedHash = typeof manifest?.parsed_evidence_sha256 === 'string' ? manifest.parsed_evidence_sha256 : (manifest?.parsed_evidence_sha256 ? String(manifest.parsed_evidence_sha256) : '');
+  const analysisHash = typeof manifest?.analysis_sha256 === 'string' ? manifest.analysis_sha256 : (manifest?.analysis_sha256 ? String(manifest.analysis_sha256) : '');
   const blockchain = manifest?.blockchain_anchoring || null;
 
   if (loading) {

@@ -14,11 +14,11 @@ export function formatBytes(bytes: number, decimals: number = 2): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
-export function formatDate(dateStr?: string | null): string {
+export function formatDate(dateStr?: any): string {
   if (!dateStr) return 'UNAVAILABLE';
   try {
     const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
+    if (isNaN(d.getTime())) return typeof dateStr === 'string' ? dateStr : String(dateStr);
     return d.toLocaleString(undefined, {
       year: 'numeric',
       month: 'short',
@@ -29,14 +29,15 @@ export function formatDate(dateStr?: string | null): string {
       hour12: false,
     });
   } catch {
-    return dateStr;
+    return typeof dateStr === 'string' ? dateStr : String(dateStr || 'UNAVAILABLE');
   }
 }
 
-export function truncateHash(hash?: string | null, length: number = 8): string {
+export function truncateHash(hash?: any, length: number = 8): string {
   if (!hash) return '';
-  if (hash.length <= length * 2) return hash;
-  return `${hash.slice(0, length)}…${hash.slice(-length)}`;
+  const str = typeof hash === 'string' ? hash : String(hash);
+  if (str.length <= length * 2) return str;
+  return `${str.slice(0, length)}…${str.slice(-length)}`;
 }
 
 export function getSeverityBadgeStyles(severity?: string | null): {

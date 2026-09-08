@@ -72,17 +72,30 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             </div>
           </div>
 
-          {/* Dev Diagnostic Info */}
-          {isDev && this.state.error && (
-            <div className="p-4 rounded-lg bg-slate-900/90 border border-cyber-border font-mono text-xs space-y-2 overflow-x-auto max-h-48 overflow-y-auto">
-              <div className="text-red-400 font-bold">
-                {this.state.error.name}: {this.state.error.message}
+          {/* Technical Diagnostic Info (Always accessible via expandable accordion) */}
+          {this.state.error && (
+            <div className="p-4 rounded-lg bg-slate-950/90 border border-red-500/30 font-mono text-xs space-y-2">
+              <div className="text-red-400 font-bold flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                <span>{this.state.error.name || 'Error'}: {this.state.error.message || String(this.state.error)}</span>
               </div>
-              {this.state.error.stack && (
-                <pre className="text-[10px] text-slate-500 whitespace-pre-wrap">
-                  {this.state.error.stack}
-                </pre>
-              )}
+              <details className="text-[11px] text-slate-400 cursor-pointer pt-1">
+                <summary className="hover:text-red-300 transition select-none text-[10px] uppercase font-bold text-slate-500">
+                  [+] VIEW TECHNICAL STACK TRACE & COMPONENT CONTEXT
+                </summary>
+                <div className="mt-2 p-2.5 rounded bg-black/80 border border-slate-800 text-[10px] space-y-1.5 overflow-x-auto max-h-48 overflow-y-auto">
+                  {this.state.error.stack && (
+                    <pre className="text-red-300/80 whitespace-pre-wrap font-mono">
+                      {this.state.error.stack}
+                    </pre>
+                  )}
+                  {this.state.errorInfo?.componentStack && (
+                    <pre className="text-slate-500 whitespace-pre-wrap font-mono pt-1 border-t border-slate-800">
+                      Component Stack:{this.state.errorInfo.componentStack}
+                    </pre>
+                  )}
+                </div>
+              </details>
             </div>
           )}
 

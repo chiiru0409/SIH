@@ -33,6 +33,7 @@ import { InfrastructurePanel } from '../infrastructure/InfrastructurePanel';
 import { GeoMap } from '../infrastructure/GeoMap';
 import { InvestigationGraphView } from '../graph/InvestigationGraphView';
 import { EvidenceIntegrityPanel } from '../evidence/EvidenceIntegrityPanel';
+import { ErrorBoundary } from '../ui/ErrorBoundary';
 import type { CaseDetail, CaseCorrelationDetailResponse } from '../../types/api';
 
 export interface CaseDetailWorkspaceProps {
@@ -56,7 +57,7 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
 
   const copyToClipboard = (text?: string | null, field?: string) => {
     if (!text || !field) return;
-    navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(String(text));
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
   };
@@ -74,11 +75,11 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
     return null;
   };
 
-  const caseId = caseData?.case_id || '';
-  const originalFilename = caseData?.original_filename || 'unknown.eml';
-  const riskLabel = caseData?.risk_label || (typeof caseData?.risk_score === 'number' 
+  const caseId = typeof caseData?.case_id === 'string' ? caseData.case_id : String(caseData?.case_id || '');
+  const originalFilename = typeof caseData?.original_filename === 'string' ? caseData.original_filename : 'unknown.eml';
+  const riskLabel = String(caseData?.risk_label || (typeof caseData?.risk_score === 'number' 
     ? (caseData.risk_score >= 80 ? 'CRITICAL' : caseData.risk_score >= 60 ? 'HIGH' : caseData.risk_score >= 30 ? 'MEDIUM' : 'LOW')
-    : 'LOW');
+    : 'LOW')).toUpperCase();
 
   const parsed = (caseData?.parsed_email && typeof caseData.parsed_email === 'object')
     ? caseData.parsed_email
@@ -233,7 +234,7 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
               <Badge variant="severity" severity={riskLabel} />
               {caseData?.campaign_id && (
                 <span className="px-2 py-0.5 rounded bg-purple-950/60 border border-purple-500/40 text-purple-300 font-mono text-[10px] font-bold">
-                  CAMPAIGN: {caseData.campaign_id}
+                  CAMPAIGN: {String(caseData.campaign_id)}
                 </span>
               )}
             </div>
@@ -309,28 +310,48 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
       </Card>
 
       {/* ========================================================= */}
-      {/* PERSISTENT TAB CONTAINERS (No React Unmounting)           */}
+      {/* PERSISTENT TAB CONTAINERS (Isolated Error Boundaries)      */}
       {/* ========================================================= */}
 
       {/* TAB 1: EXECUTIVE SUMMARY */}
       <div className={activeTab === 'overview' ? 'block space-y-6' : 'hidden'} key="tab-overview">
-        {/* Top Row: Risk Hero + Threat Panel */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <RiskScoreHero riskAssessment={risk as any} />
-          <ThreatClassificationPanel threatAnalysis={threatAnalysis} />
-        </div>
+        <ErrorBoundary fallbackTitle="EXECUTIVE SUMMARY RENDER ERROR">
+          {/* Top Row: Risk Hero + Threat Panel */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <RiskScoreHero riskAssessment={risk as any} />
+            <ThreatClassificationPanel threatAnalysis={threatAnalysis} />
+          </div>
 
-        {/* Second Row: Top Risk Factors + Auth Matrix */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <RiskFactorsList factors={risk?.top_factors?.length ? risk.top_factors : (risk?.risk_factors || [])} />
+          {/* Second Row: Top Risk Factors + Auth Matrix */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <RiskFactorsList factors={risk?.top_factors?.length ? risk.top_factors : (risk?.risk_factors || [])} />
+            <AuthenticationMatrix
+              auth={auth}
+              alignment={authAlignmentObj}
+            />
+          </div>
+
+          {/* Third Row: Identity Inspector + Relay Timeline */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <IdentityInspector
+              email={identityEmailObj}
+              flags={indicators?.flags || {}}
+            />
+            <RelayTimeline
+              smtpTrace={relayTraceObj}
+            />
+          </div>
+        </ErrorBoundary>
+      </div>
+
+      {/* TAB 2: DEEP FORENSICS */}
+      <div className={activeTab === 'forensics' ? 'block space-y-6' : 'hidden'} key="tab-forensics">
+        <ErrorBoundary fallbackTitle="DEEP FORENSICS RENDER ERROR">
+          <ForensicEvidencePanel forensics={forensicAnalysis} />
           <AuthenticationMatrix
             auth={auth}
             alignment={authAlignmentObj}
           />
-        </div>
-
-        {/* Third Row: Identity Inspector + Relay Timeline */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <IdentityInspector
             email={identityEmailObj}
             flags={indicators?.flags || {}}
@@ -338,84 +359,78 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
           <RelayTimeline
             smtpTrace={relayTraceObj}
           />
-        </div>
-      </div>
-
-      {/* TAB 2: DEEP FORENSICS */}
-      <div className={activeTab === 'forensics' ? 'block space-y-6' : 'hidden'} key="tab-forensics">
-        <ForensicEvidencePanel forensics={forensicAnalysis} />
-        <AuthenticationMatrix
-          auth={auth}
-          alignment={authAlignmentObj}
-        />
-        <IdentityInspector
-          email={identityEmailObj}
-          flags={indicators?.flags || {}}
-        />
-        <RelayTimeline
-          smtpTrace={relayTraceObj}
-        />
+        </ErrorBoundary>
       </div>
 
       {/* TAB 3: THREAT INTELLIGENCE */}
       <div className={activeTab === 'threat' ? 'block space-y-6' : 'hidden'} key="tab-threat">
-        <ThreatClassificationPanel threatAnalysis={threatAnalysis} />
-        <RiskFactorsList factors={risk?.top_factors?.length ? risk.top_factors : (risk?.risk_factors || [])} />
+        <ErrorBoundary fallbackTitle="THREAT INTELLIGENCE RENDER ERROR">
+          <ThreatClassificationPanel threatAnalysis={threatAnalysis} />
+          <RiskFactorsList factors={risk?.top_factors?.length ? risk.top_factors : (risk?.risk_factors || [])} />
+        </ErrorBoundary>
       </div>
 
       {/* TAB 4: INFRASTRUCTURE & GEO */}
       <div className={activeTab === 'infrastructure' ? 'block space-y-6' : 'hidden'} key="tab-infrastructure">
-        <GeoMap ips={Array.isArray(ipIntel?.ips) ? ipIntel.ips : []} />
-        <InfrastructurePanel
-          infrastructure={{
-            summary: ipIntel?.summary || {},
-            ips: Array.isArray(ipIntel?.ips) ? ipIntel.ips : [],
-            domains: Array.isArray(domainIntel?.domains) ? domainIntel.domains : [],
-            urls: Array.isArray(urlIntel?.urls) ? urlIntel.urls : [],
-            limitations: [],
-          }}
-        />
+        <ErrorBoundary fallbackTitle="INFRASTRUCTURE & GEO RENDER ERROR">
+          <GeoMap ips={Array.isArray(ipIntel?.ips) ? ipIntel.ips : []} />
+          <InfrastructurePanel
+            infrastructure={{
+              summary: ipIntel?.summary || {},
+              ips: Array.isArray(ipIntel?.ips) ? ipIntel.ips : [],
+              domains: Array.isArray(domainIntel?.domains) ? domainIntel.domains : [],
+              urls: Array.isArray(urlIntel?.urls) ? urlIntel.urls : [],
+              limitations: [],
+            }}
+          />
+        </ErrorBoundary>
       </div>
 
       {/* TAB 5: INVESTIGATION GRAPH */}
       <div className={activeTab === 'graph' ? 'block space-y-6' : 'hidden'} key="tab-graph">
-        <InvestigationGraphView
-          graph={correlationData?.graph || { nodes: [], edges: [] }}
-          selectedCaseId={caseId}
-          onSelectCase={onSelectRelatedCase}
-        />
+        <ErrorBoundary fallbackTitle="INVESTIGATION GRAPH RENDER ERROR">
+          <InvestigationGraphView
+            graph={correlationData?.graph || { nodes: [], edges: [] }}
+            selectedCaseId={caseId}
+            onSelectCase={onSelectRelatedCase}
+          />
+        </ErrorBoundary>
       </div>
 
       {/* TAB 6: EVIDENCE INTEGRITY & BLOCKCHAIN ANCHORING */}
       <div className={activeTab === 'integrity' ? 'block space-y-6' : 'hidden'} key="tab-integrity">
-        <EvidenceIntegrityPanel
-          caseId={caseId}
-          initialEvidenceHash={caseData?.evidence_hash}
-        />
+        <ErrorBoundary fallbackTitle="EVIDENCE INTEGRITY RENDER ERROR">
+          <EvidenceIntegrityPanel
+            caseId={caseId}
+            initialEvidenceHash={caseData?.evidence_hash}
+          />
+        </ErrorBoundary>
       </div>
 
       {/* TAB 7: EMAIL CONTENT (SAFE SANITIZED PREVIEW) */}
       <div className={activeTab === 'raw_email' ? 'block space-y-6' : 'hidden'} key="tab-raw_email">
-        <Card
-          title="EXTRACTED EMAIL BODY"
-          subtitle="Sandboxed defense-in-depth HTML rendering (scripts stripped, active clicks defanged)"
-          icon={<Mail className="w-4 h-4 text-cyber-cyan" />}
-        >
-          <div className="space-y-4">
-            {emailHtml ? (
-              <div className="p-4 rounded-lg bg-slate-900 border border-cyber-border max-h-[600px] overflow-y-auto">
-                <div
-                  dangerouslySetInnerHTML={{ __html: emailHtml }}
-                  className="prose prose-invert max-w-none text-slate-200 text-xs"
-                />
-              </div>
-            ) : (
-              <pre className="p-4 rounded-lg bg-cyber-surface border border-cyber-border font-mono text-xs text-slate-300 whitespace-pre-wrap max-h-[600px] overflow-y-auto">
-                {emailText || '(No plain-text body content extracted)'}
-              </pre>
-            )}
-          </div>
-        </Card>
+        <ErrorBoundary fallbackTitle="EMAIL PREVIEW RENDER ERROR">
+          <Card
+            title="EXTRACTED EMAIL BODY"
+            subtitle="Sandboxed defense-in-depth HTML rendering (scripts stripped, active clicks defanged)"
+            icon={<Mail className="w-4 h-4 text-cyber-cyan" />}
+          >
+            <div className="space-y-4">
+              {emailHtml ? (
+                <div className="p-4 rounded-lg bg-slate-900 border border-cyber-border max-h-[600px] overflow-y-auto">
+                  <div
+                    dangerouslySetInnerHTML={{ __html: emailHtml }}
+                    className="prose prose-invert max-w-none text-slate-200 text-xs"
+                  />
+                </div>
+              ) : (
+                <pre className="p-4 rounded-lg bg-cyber-surface border border-cyber-border font-mono text-xs text-slate-300 whitespace-pre-wrap max-h-[600px] overflow-y-auto">
+                  {emailText || '(No plain-text body content extracted)'}
+                </pre>
+              )}
+            </div>
+          </Card>
+        </ErrorBoundary>
       </div>
 
       {/* Raw RFC 5322 Headers Modal */}
