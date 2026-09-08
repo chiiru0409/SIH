@@ -18,6 +18,7 @@ import { CaseDetailWorkspace } from './components/cases/CaseDetailWorkspace';
 import { Alert } from './components/ui/Alert';
 import { 
   checkHealth, 
+  checkReadiness,
   fetchCases, 
   fetchCase, 
   fetchGlobalCorrelation, 
@@ -28,13 +29,15 @@ import type {
   CaseDetail, 
   UploadResponse, 
   CorrelationOverviewResponse, 
-  CaseCorrelationDetailResponse 
+  CaseCorrelationDetailResponse,
+  DatabaseStatus,
 } from './types/api';
 
 export const App: React.FC = () => {
   // Navigation & View State
   const [activeTab, setActiveTab] = useState<string>('overview');
   const [apiConnected, setApiConnected] = useState<boolean>(true);
+  const [dbStatus, setDbStatus] = useState<DatabaseStatus | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Active Case Workspace State
@@ -51,10 +54,22 @@ export const App: React.FC = () => {
   // Initial Health & Data Polling
   const verifyBackend = useCallback(async () => {
     try {
-      await checkHealth();
+      const readyRes = await checkReadiness();
       setApiConnected(true);
+      if (readyRes.db_info) {
+        setDbStatus(readyRes.db_info);
+      }
     } catch {
-      setApiConnected(false);
+      try {
+        const healthRes = await checkHealth();
+        setApiConnected(true);
+        if (healthRes.db_info) {
+          setDbStatus(healthRes.db_info);
+        }
+      } catch {
+        setApiConnected(false);
+        setDbStatus(null);
+      }
     }
   }, []);
 
@@ -143,6 +158,7 @@ export const App: React.FC = () => {
           }
         }}
         apiConnected={apiConnected}
+        dbStatus={dbStatus}
         activeCaseId={activeCaseId}
         onResetCase={handleResetCase}
       />
@@ -306,7 +322,7 @@ export const App: React.FC = () => {
       </main>
 
       {/* Forensic Engine Footer */}
-      <Footer />
+      <Footer dbStatus={dbStatus} />
 
     </div>
   );

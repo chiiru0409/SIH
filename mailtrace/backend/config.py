@@ -34,8 +34,10 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------ #
     # SQLite by default for development; PostgreSQL (Neon) in production.
     # Accepts postgresql://, postgres://, or postgresql+asyncpg:// URLs.
-    DATABASE_URL: str = f"sqlite+aiosqlite:///{BASE_DIR}/mailtrace.db"
+    DATABASE_URL: str = ""
     POSTGRES_URL: str = ""                # Vercel / Neon alias fallback
+    POSTGRES_PRISMA_URL: str = ""         # Vercel Prisma alias fallback
+    POSTGRES_URL_NON_POOLING: str = ""    # Vercel non-pooling alias fallback
     NEON_DATABASE_URL: str = ""           # Neon alias fallback
 
     # ------------------------------------------------------------------ #

@@ -90,10 +90,17 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 // ------------------------------------------------------------------ //
 
 /**
- * Check backend health & status.
+ * Check backend liveness & metadata.
  */
 export async function checkHealth(): Promise<HealthResponse> {
   return request<HealthResponse>('/api/health');
+}
+
+/**
+ * Check backend database readiness & connection status.
+ */
+export async function checkReadiness(): Promise<HealthResponse> {
+  return request<HealthResponse>('/api/health/ready');
 }
 
 /**

@@ -13,10 +13,13 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 
+import type { DatabaseStatus } from '../../types/api';
+
 export interface HeaderProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   apiConnected: boolean;
+  dbStatus?: DatabaseStatus | null;
   activeCaseId: string | null;
   onResetCase: () => void;
 }
@@ -25,6 +28,7 @@ export const Header: React.FC<HeaderProps> = ({
   activeTab,
   onTabChange,
   apiConnected,
+  dbStatus,
   activeCaseId,
   onResetCase,
 }) => {
@@ -36,6 +40,15 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'campaigns', label: 'Campaign Clusters', icon: <Layers className="w-3.5 h-3.5" /> },
     { id: 'cases', label: 'Case Repository', icon: <FolderLock className="w-3.5 h-3.5" /> },
   ];
+
+  const isDbReady = dbStatus ? dbStatus.connected && dbStatus.status === 'ready' : apiConnected;
+  const dbLabel = dbStatus
+    ? dbStatus.provider === 'neon'
+      ? 'NEON DB'
+      : dbStatus.engine === 'postgresql'
+      ? 'POSTGRES'
+      : 'SQLITE'
+    : 'DB';
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-cyber-border/80 bg-cyber-bg/90 backdrop-blur-md">
@@ -96,6 +109,19 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <span className={`w-2 h-2 rounded-full ${apiConnected ? 'bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500'}`} />
               <span className="hidden sm:inline">{apiConnected ? 'API ONLINE' : 'API OFFLINE'}</span>
+            </div>
+
+            {/* Database Readiness Status */}
+            <div
+              className={`hidden md:flex items-center space-x-1.5 px-2.5 py-1 rounded-full border text-[11px] font-mono ${
+                isDbReady
+                  ? 'bg-cyan-950/40 border-cyan-500/30 text-cyan-400'
+                  : 'bg-amber-950/40 border-amber-500/30 text-amber-400 animate-pulse'
+              }`}
+              title={isDbReady ? `Database connected (${dbLabel})` : 'Database is unreachable or initializing'}
+            >
+              <span className={`w-2 h-2 rounded-full ${isDbReady ? 'bg-cyan-400 shadow-[0_0_8px_rgba(0,240,255,0.8)]' : 'bg-amber-500'}`} />
+              <span>{isDbReady ? `${dbLabel} READY` : 'DB OFFLINE'}</span>
             </div>
 
             {/* Active Case Context */}

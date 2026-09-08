@@ -386,25 +386,32 @@ async def list_cases(
     page_size: int = Query(default=20, ge=1, le=100, description="Results per page"),
     db: AsyncSession = Depends(get_db),
 ) -> list[CaseSummary]:
-    offset = (page - 1) * page_size
-    result = await db.execute(
-        select(AnalysisCase)
-        .order_by(AnalysisCase.created_at.desc())
-        .offset(offset)
-        .limit(page_size)
-    )
-    cases = result.scalars().all()
-    return [
-        CaseSummary(
-            case_id=c.id,
-            original_filename=c.original_filename,
-            status=c.status,
-            risk_score=c.risk_score,
-            risk_label=c.risk_label,
-            created_at=c.created_at,
+    try:
+        offset = (page - 1) * page_size
+        result = await db.execute(
+            select(AnalysisCase)
+            .order_by(AnalysisCase.created_at.desc())
+            .offset(offset)
+            .limit(page_size)
         )
-        for c in cases
-    ]
+        cases = result.scalars().all()
+        return [
+            CaseSummary(
+                case_id=c.id,
+                original_filename=c.original_filename,
+                status=c.status,
+                risk_score=c.risk_score,
+                risk_label=c.risk_label,
+                created_at=c.created_at,
+            )
+            for c in cases
+        ]
+    except Exception as exc:
+        logger.error(f"Failed to query analysis cases: {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"status": "error", "code": "DB_QUERY_ERROR", "message": "Failed to retrieve case repository."},
+        )
 
 
 # ------------------------------------------------------------------ #
@@ -421,10 +428,17 @@ async def get_case(
     case_id: str,
     db: AsyncSession = Depends(get_db),
 ) -> CaseDetail:
-    result = await db.execute(
-        select(AnalysisCase).where(AnalysisCase.id == case_id)
-    )
-    case = result.scalar_one_or_none()
+    try:
+        result = await db.execute(
+            select(AnalysisCase).where(AnalysisCase.id == case_id)
+        )
+        case = result.scalar_one_or_none()
+    except Exception as exc:
+        logger.error(f"Failed to query case {case_id}: {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"status": "error", "code": "DB_QUERY_ERROR", "message": "Failed to retrieve case details."},
+        )
 
     if not case:
         raise HTTPException(
@@ -457,3 +471,4 @@ async def get_case(
         evidence_hash=case.evidence_hash,
         error_detail=case.error_detail,
     )
+

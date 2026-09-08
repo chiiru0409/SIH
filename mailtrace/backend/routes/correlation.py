@@ -68,36 +68,44 @@ def _case_to_dict(c: AnalysisCase) -> dict:
 async def get_global_correlation(
     db: AsyncSession = Depends(get_db),
 ) -> CorrelationOverviewResponse:
-    # 1. Fetch all cases from database
-    result = await db.execute(select(AnalysisCase))
-    cases = result.scalars().all()
+    try:
+        # 1. Fetch all cases from database
+        result = await db.execute(select(AnalysisCase))
+        cases = result.scalars().all()
+    except Exception as exc:
+        logger.error(f"Failed to query cases for correlation: {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"status": "error", "code": "DB_QUERY_ERROR", "message": "Failed to retrieve correlation data."},
+        )
 
     cases_dicts = [_case_to_dict(c) for c in cases]
 
     # 2. Build multi-case correlation and graph
     overview = build_campaign_correlation(cases_dicts)
 
-    # 3. Synchronize campaign IDs back to database if updated
-    campaigns = overview.get("campaigns", [])
-    campaign_map: dict[str, str] = {}
-    for camp in campaigns:
-        cid = camp["campaign_id"]
-        for case_id in camp.get("case_ids", []):
-            campaign_map[case_id] = cid
+    # 3. Synchronize campaign IDs back to database if updated and cases exist
+    if cases:
+        campaigns = overview.get("campaigns", [])
+        campaign_map: dict[str, str] = {}
+        for camp in campaigns:
+            cid = camp["campaign_id"]
+            for case_id in camp.get("case_ids", []):
+                campaign_map[case_id] = cid
 
-    for c in cases:
-        assigned_camp = campaign_map.get(c.id)
-        if assigned_camp and c.campaign_id != assigned_camp:
-            c.campaign_id = assigned_camp
-            c.correlation_data = {
-                "campaign_id": assigned_camp,
-                "correlated": True,
-            }
+        for c in cases:
+            assigned_camp = campaign_map.get(c.id)
+            if assigned_camp and c.campaign_id != assigned_camp:
+                c.campaign_id = assigned_camp
+                c.correlation_data = {
+                    "campaign_id": assigned_camp,
+                    "correlated": True,
+                }
 
-    try:
-        await db.flush()
-    except Exception as exc:
-        logger.warning(f"Failed to persist campaign assignments: {exc}")
+        try:
+            await db.flush()
+        except Exception as exc:
+            logger.warning(f"Failed to persist campaign assignments: {exc}")
 
     return CorrelationOverviewResponse(
         total_cases=overview["total_cases"],
@@ -123,9 +131,16 @@ async def get_case_correlation(
     case_id: str,
     db: AsyncSession = Depends(get_db),
 ) -> CaseCorrelationDetailResponse:
-    # 1. Verify case exists
-    target_res = await db.execute(select(AnalysisCase).where(AnalysisCase.id == case_id))
-    target_case = target_res.scalar_one_or_none()
+    try:
+        # 1. Verify case exists
+        target_res = await db.execute(select(AnalysisCase).where(AnalysisCase.id == case_id))
+        target_case = target_res.scalar_one_or_none()
+    except Exception as exc:
+        logger.error(f"Failed to query target case {case_id} for correlation: {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"status": "error", "code": "DB_QUERY_ERROR", "message": "Failed to retrieve case correlation."},
+        )
 
     if not target_case:
         raise HTTPException(
@@ -137,9 +152,14 @@ async def get_case_correlation(
             },
         )
 
-    # 2. Fetch all cases to compute correlation context
-    all_res = await db.execute(select(AnalysisCase))
-    all_cases = all_res.scalars().all()
+    try:
+        # 2. Fetch all cases to compute correlation context
+        all_res = await db.execute(select(AnalysisCase))
+        all_cases = all_res.scalars().all()
+    except Exception as exc:
+        logger.error(f"Failed to query all cases for correlation subgraph: {exc}", exc_info=True)
+        all_cases = [target_case]
+
     cases_dicts = [_case_to_dict(c) for c in all_cases]
 
     # 3. Build correlation overview and extract case subgraph
@@ -155,3 +175,4 @@ async def get_case_correlation(
         graph=subgraph_detail.get("graph", {"nodes": [], "edges": []}),
         limitations=subgraph_detail.get("limitations", []),
     )
+

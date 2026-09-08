@@ -395,12 +395,21 @@ export interface CaseCorrelationDetailResponse {
 //  9. Health & System                                                //
 // ------------------------------------------------------------------ //
 
+export interface DatabaseStatus {
+  engine: 'sqlite' | 'postgresql' | string;
+  dialect: 'aiosqlite' | 'asyncpg' | string;
+  provider: 'local' | 'neon' | 'postgresql' | string;
+  status: 'ready' | 'degraded' | 'unreachable' | string;
+  connected: boolean;
+}
+
 export interface HealthResponse {
   status: string;
   app: string;
   version: string;
   environment: string;
   database: string;
+  db_info?: DatabaseStatus | null;
 }
 
 // ------------------------------------------------------------------ //

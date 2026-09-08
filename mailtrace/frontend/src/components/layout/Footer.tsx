@@ -1,7 +1,20 @@
 import React from 'react';
-import { ShieldCheck, Database, Terminal, FileCode } from 'lucide-react';
+import { ShieldCheck, Terminal, FileCode } from 'lucide-react';
+import type { DatabaseStatus } from '../../types/api';
 
-export const Footer: React.FC = () => {
+export interface FooterProps {
+  dbStatus?: DatabaseStatus | null;
+}
+
+export const Footer: React.FC<FooterProps> = ({ dbStatus }) => {
+  const dbLabel = dbStatus
+    ? dbStatus.provider === 'neon'
+      ? 'NEON POSTGRESQL'
+      : dbStatus.engine === 'postgresql'
+      ? 'POSTGRESQL DATABASE'
+      : 'SQLITE DATABASE'
+    : 'DATABASE';
+
   return (
     <footer className="border-t border-cyber-border/80 bg-cyber-bg/95 py-8 mt-16 text-xs text-slate-400">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -57,7 +70,7 @@ export const Footer: React.FC = () => {
           <div className="flex items-center space-x-4 mt-2 sm:mt-0">
             <span>API v1.0.0</span>
             <span>•</span>
-            <span>SQLITE DATABASE</span>
+            <span className="text-cyan-400/90 font-semibold">{dbLabel}</span>
             <span>•</span>
             <span>NETWORKX CORRELATION</span>
           </div>
@@ -66,3 +79,4 @@ export const Footer: React.FC = () => {
     </footer>
   );
 };
+

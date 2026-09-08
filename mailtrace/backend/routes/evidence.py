@@ -39,8 +39,16 @@ router = APIRouter(prefix="/api/evidence", tags=["evidence"])
 
 
 async def _get_case_or_404(case_id: str, db: AsyncSession) -> AnalysisCase:
-    res = await db.execute(select(AnalysisCase).where(AnalysisCase.id == case_id))
-    case = res.scalar_one_or_none()
+    try:
+        res = await db.execute(select(AnalysisCase).where(AnalysisCase.id == case_id))
+        case = res.scalar_one_or_none()
+    except Exception as exc:
+        logger.error(f"Failed to query case {case_id} for evidence: {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"status": "error", "code": "DB_QUERY_ERROR", "message": "Failed to retrieve evidence record."},
+        )
+
     if not case:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

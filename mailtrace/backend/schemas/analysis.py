@@ -252,12 +252,21 @@ class CaseDetail(BaseModel):
 #  Health check                                                      #
 # ------------------------------------------------------------------ #
 
+class DatabaseStatus(BaseModel):
+    engine: str = "sqlite"            # sqlite | postgresql
+    dialect: str = "aiosqlite"        # aiosqlite | asyncpg
+    provider: str = "local"           # local | neon | postgresql
+    status: str = "ready"             # ready | degraded | unreachable
+    connected: bool = True
+
+
 class HealthResponse(BaseModel):
     status: str
     app: str
     version: str
     environment: str
-    database: str
+    database: str = "ready"
+    db_info: DatabaseStatus | None = None
 
 
 # ------------------------------------------------------------------ #
