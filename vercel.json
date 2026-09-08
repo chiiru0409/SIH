@@ -4,6 +4,7 @@
   "outputDirectory": "mailtrace/frontend/dist",
   "functions": {
     "api/index.py": {
+      "includeFiles": "mailtrace/**",
       "maxDuration": 60,
       "memory": 1024
     }

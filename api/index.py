@@ -13,7 +13,12 @@ current_dir = Path(__file__).resolve().parent
 project_root = current_dir.parent
 mailtrace_dir = project_root / "mailtrace"
 
-for path in (str(mailtrace_dir), str(project_root)):
+for path in (
+    str(mailtrace_dir),
+    str(project_root),
+    str(current_dir),
+    str(current_dir / "mailtrace"),
+):
     if path not in sys.path:
         sys.path.insert(0, path)
 
