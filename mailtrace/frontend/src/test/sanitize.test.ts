@@ -13,6 +13,17 @@ describe('Sanitization and Defanging Utilities', () => {
     expect(clean).toContain('Hello');
   });
 
+  it('strips form elements, svg, and defangs links with click blocker', () => {
+    const malicious = `<form action="http://evil.com"><input type="text" name="pwd"/><button>Submit</button></form><svg><circle /></svg><a href="https://legit.com">Link</a>`;
+    const clean = sanitizeHtml(malicious);
+
+    expect(clean).not.toContain('<form');
+    expect(clean).not.toContain('<input');
+    expect(clean).not.toContain('<button');
+    expect(clean).not.toContain('<svg');
+    expect(clean).toContain('onclick="return false;"');
+  });
+
   it('defangs URLs properly without altering paths', () => {
     expect(defangUrl('http://evil.com/login')).toBe('hxxp://evil[.]com/login');
     expect(defangUrl('https://secure-bank.example.org/auth')).toBe('hxxps://secure-bank[.]example[.]org/auth');
@@ -23,3 +34,4 @@ describe('Sanitization and Defanging Utilities', () => {
     expect(defangIp('8.8.8.8')).toBe('8[.]8[.]8[.]8');
   });
 });
+
