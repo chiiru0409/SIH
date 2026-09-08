@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 # ------------------------------------------------------------------ #
 
 class UploadResponse(BaseModel):
-    """Returned immediately after a successful .eml upload + parse + forensic + AI threat analysis."""
+    """Returned immediately after a successful .eml upload + parse + forensic + AI threat + intel analysis."""
     case_id: str
     status: str
     filename: str
@@ -29,6 +29,7 @@ class UploadResponse(BaseModel):
     evidence: dict[str, Any]
     forensic_analysis: dict[str, Any] | None = None
     threat_analysis: dict[str, Any] | None = None
+    infrastructure_intelligence: dict[str, Any] | None = None
     parse_errors: list[str] = Field(default_factory=list)
 
 
@@ -66,6 +67,73 @@ class ThreatAnalysisResult(BaseModel):
     evidence_summary: dict[str, list[str]] = Field(default_factory=dict)
     analysis_method: str = "local"
     model_info: str = "rule-nlp-engine-v1"
+
+
+# ------------------------------------------------------------------ #
+#  Phase 5 — Infrastructure Intelligence Models                      #
+# ------------------------------------------------------------------ #
+
+class GeoLocationInfo(BaseModel):
+    country: str | None = None
+    country_code: str | None = None
+    region: str | None = None
+    city: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    timezone: str | None = None
+    source: str = "unavailable"
+    status: str = "unavailable"
+
+
+class ASNInfo(BaseModel):
+    asn: str | None = None
+    organization: str | None = None
+    network: str | None = None
+    registry: str | None = None
+    source: str = "unavailable"
+    status: str = "unknown"
+
+
+class IPRecord(BaseModel):
+    ip: str
+    version: int
+    classification: str
+    geo: GeoLocationInfo | dict[str, Any] = Field(default_factory=dict)
+    asn: ASNInfo | dict[str, Any] = Field(default_factory=dict)
+    source: str = "unavailable"
+    status: str = "unavailable"
+
+
+class DomainRecord(BaseModel):
+    domain: str
+    registrable_domain: str
+    subdomain: str | None = None
+    tld: str | None = None
+    rdap: dict[str, Any] = Field(default_factory=dict)
+    source: str = "unavailable"
+    status: str = "unavailable"
+
+
+class URLStructureRecord(BaseModel):
+    url: str
+    scheme: str
+    hostname: str
+    port: int | None = None
+    registrable_domain: str
+    path: str
+    query_params_count: int
+    url_hash: str
+    flags: dict[str, Any] = Field(default_factory=dict)
+    indicators: list[str] = Field(default_factory=list)
+
+
+class InfrastructureIntelligenceResult(BaseModel):
+    summary: dict[str, Any]
+    ips: list[IPRecord | dict[str, Any]] = Field(default_factory=list)
+    domains: list[DomainRecord | dict[str, Any]] = Field(default_factory=list)
+    urls: list[URLStructureRecord | dict[str, Any]] = Field(default_factory=list)
+    correlation_entities: dict[str, Any] = Field(default_factory=dict)
+    limitations: list[str] = Field(default_factory=list)
 
 
 # ------------------------------------------------------------------ #

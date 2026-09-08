@@ -24,6 +24,7 @@ from backend.schemas.analysis import CaseDetail, CaseSummary, UploadResponse
 from backend.services.email_parser import parse_email
 from backend.services.evidence import build_evidence_record, sha256_bytes
 from backend.services.forensics import run_forensic_analysis
+from backend.services.intelligence import enrich_infrastructure
 from backend.services.threat_analyzer import analyze_threat
 
 logger = logging.getLogger("mailtrace.routes.analyze")
@@ -50,6 +51,7 @@ def _build_upload_response(
     evidence: dict,
     forensic: dict | None = None,
     threat: dict | None = None,
+    intel: dict | None = None,
 ) -> dict:
     """Build the structured JSON response for POST /upload."""
     headers = parsed.get("headers", {})
@@ -115,6 +117,12 @@ def _build_upload_response(
         },
         "forensic_analysis": forensic or case.forensic_analysis,
         "threat_analysis": threat or case.ai_analysis,
+        "infrastructure_intelligence": intel or {
+            "ips": (case.ip_intel or {}).get("ips", []),
+            "domains": (case.domain_intel or {}).get("domains", []),
+            "urls": (case.url_intel or {}).get("urls", []),
+            "summary": (case.ip_intel or {}).get("summary", {}),
+        },
         "parse_errors": parsed.get("parse_errors", []),
     }
 
@@ -257,6 +265,20 @@ async def upload_eml(
             "model_info": "fallback",
         }
 
+    # ---- Step 5: Run infrastructure intelligence enrichment ----
+    try:
+        intel_data = enrich_infrastructure(parsed, forensic_data, threat_data)
+    except Exception as exc:
+        logger.error(f"Intelligence enrichment error: {exc}")
+        intel_data = {
+            "summary": {"status": "error", "error": str(exc)},
+            "ips": [],
+            "domains": [],
+            "urls": [],
+            "correlation_entities": {},
+            "limitations": [],
+        }
+
     # ---- Persist to database ----
     case = AnalysisCase(
         id=case_id,
@@ -266,6 +288,9 @@ async def upload_eml(
         parsed_email=parsed,
         forensic_analysis=forensic_data,
         ai_analysis=threat_data,
+        ip_intel={"ips": intel_data.get("ips", []), "summary": intel_data.get("summary", {})},
+        domain_intel={"domains": intel_data.get("domains", []), "summary": intel_data.get("summary", {})},
+        url_intel={"urls": intel_data.get("urls", []), "summary": intel_data.get("summary", {})},
         status=case_status,
         evidence_hash=evidence["file_sha256"],
     )
@@ -282,7 +307,7 @@ async def upload_eml(
 
     logger.info(f"Case {case_id} stored — file={filename} status={case_status} sha256={evidence['file_sha256'][:16]}…")
 
-    return _build_upload_response(case, parsed, evidence, forensic_data, threat_data)
+    return _build_upload_response(case, parsed, evidence, forensic_data, threat_data, intel_data)
 
 
 # ------------------------------------------------------------------ #
