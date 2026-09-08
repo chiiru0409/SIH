@@ -23,6 +23,7 @@ from backend.models.analysis import AnalysisCase
 from backend.schemas.analysis import CaseDetail, CaseSummary, UploadResponse
 from backend.services.email_parser import parse_email
 from backend.services.evidence import build_evidence_record, sha256_bytes
+from backend.services.forensics import run_forensic_analysis
 
 logger = logging.getLogger("mailtrace.routes.analyze")
 
@@ -42,7 +43,7 @@ def _safe_str(val) -> str | None:
     return str(val)
 
 
-def _build_upload_response(case: AnalysisCase, parsed: dict, evidence: dict) -> dict:
+def _build_upload_response(case: AnalysisCase, parsed: dict, evidence: dict, forensic: dict | None = None) -> dict:
     """Build the structured JSON response for POST /upload."""
     headers = parsed.get("headers", {})
     sender  = parsed.get("sender", {})
@@ -105,6 +106,7 @@ def _build_upload_response(case: AnalysisCase, parsed: dict, evidence: dict) -> 
             "parsed_data_sha256": evidence.get("parsed_data_sha256"),
             "integrity_note":     evidence.get("integrity_note"),
         },
+        "forensic_analysis": forensic or case.forensic_analysis,
         "parse_errors": parsed.get("parse_errors", []),
     }
 
@@ -217,6 +219,19 @@ async def upload_eml(
     parse_errors = parsed.get("parse_errors", [])
     case_status = "parsed_with_warnings" if parse_errors else "parsed"
 
+    # ---- Step 3: Run forensic analysis ----
+    try:
+        forensic_data = run_forensic_analysis(parsed, raw_bytes)
+    except Exception as exc:
+        logger.error(f"Forensics error: {exc}")
+        forensic_data = {
+            "summary": {"status": "error", "error": str(exc)},
+            "findings": [],
+            "facts": [],
+            "inferences": [],
+            "limitations": [],
+        }
+
     # ---- Persist to database ----
     case = AnalysisCase(
         id=case_id,
@@ -224,6 +239,7 @@ async def upload_eml(
         stored_filename=safe_name,
         file_size_bytes=len(raw_bytes),
         parsed_email=parsed,
+        forensic_analysis=forensic_data,
         status=case_status,
         evidence_hash=evidence["file_sha256"],
     )
@@ -240,7 +256,7 @@ async def upload_eml(
 
     logger.info(f"Case {case_id} stored — file={filename} status={case_status} sha256={evidence['file_sha256'][:16]}…")
 
-    return _build_upload_response(case, parsed, evidence)
+    return _build_upload_response(case, parsed, evidence, forensic_data)
 
 
 # ------------------------------------------------------------------ #

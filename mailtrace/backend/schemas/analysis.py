@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 # ------------------------------------------------------------------ #
 
 class UploadResponse(BaseModel):
-    """Returned immediately after a successful .eml upload + parse."""
+    """Returned immediately after a successful .eml upload + parse + forensic analysis."""
     case_id: str
     status: str
     filename: str
@@ -27,6 +27,8 @@ class UploadResponse(BaseModel):
     smtp_trace: dict[str, Any]
     indicators: dict[str, Any]
     evidence: dict[str, Any]
+    forensic_analysis: dict[str, Any] | None = None
+    parse_errors: list[str] = Field(default_factory=list)
 
 
 # ------------------------------------------------------------------ #

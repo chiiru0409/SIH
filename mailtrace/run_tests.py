@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import pytest
 
 result = pytest.main([
-    "tests/test_parser.py",
+    "tests/",
     "-v",
     "--tb=short",
     "--no-header",
