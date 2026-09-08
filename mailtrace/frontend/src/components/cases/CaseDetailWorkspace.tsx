@@ -48,34 +48,46 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
   correlationData,
   onBack,
   onSelectRelatedCase,
-  className,
+  className = '',
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'forensics' | 'threat' | 'infrastructure' | 'graph' | 'integrity' | 'raw_email'>('overview');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isHeadersModalOpen, setIsHeadersModalOpen] = useState(false);
 
-  const copyToClipboard = (text: string, field: string) => {
-    if (!text) return;
+  const copyToClipboard = (text?: string | null, field?: string) => {
+    if (!text || !field) return;
     navigator.clipboard.writeText(text);
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
   };
 
+  // Safe Defensive Extractions
   const caseId = caseData?.case_id || '';
   const originalFilename = caseData?.original_filename || 'unknown.eml';
-  const riskLabel = caseData?.risk_label || 'LOW';
+  const riskLabel = caseData?.risk_label || (typeof caseData?.risk_score === 'number' 
+    ? (caseData.risk_score >= 80 ? 'CRITICAL' : caseData.risk_score >= 60 ? 'HIGH' : caseData.risk_score >= 30 ? 'MEDIUM' : 'LOW')
+    : 'LOW');
 
   const parsed = caseData?.parsed_email || (caseData as any)?.email_analysis?.parsed_email || {};
-  const headers = parsed?.headers || parsed || {};
-  const sender = parsed?.sender || {
-    email: parsed?.from_address || parsed?.from || null,
-    display_name: parsed?.from_display_name || parsed?.from_display || null,
-    domain: parsed?.from_domain || (typeof parsed?.from_address === 'string' ? parsed.from_address.split('@')[1] : null),
+  const headers = parsed?.headers || (typeof parsed === 'object' ? parsed : {}) || {};
+  
+  const sender = {
+    email: parsed?.sender?.email || parsed?.from_address || parsed?.from || null,
+    display_name: parsed?.sender?.display_name || parsed?.from_display_name || parsed?.from_display || null,
+    domain: parsed?.sender?.domain || parsed?.from_domain || (typeof parsed?.from === 'string' && parsed.from.includes('@') ? parsed.from.split('@')[1] : null),
   };
-  const recips = parsed?.recipients || {
-    to: parsed?.to_addresses || parsed?.to || [],
-    cc: parsed?.cc_addresses || parsed?.cc || [],
-  };
+
+  const rawTo = parsed?.recipients?.to || parsed?.to_addresses || parsed?.to || [];
+  const rawCc = parsed?.recipients?.cc || parsed?.cc_addresses || parsed?.cc || [];
+  
+  const toRecipients: string[] = Array.isArray(rawTo)
+    ? rawTo.map((r: any) => (typeof r === 'string' ? r : r?.address || r?.email || '')).filter(Boolean)
+    : typeof rawTo === 'string' ? [rawTo] : [];
+
+  const ccRecipients: string[] = Array.isArray(rawCc)
+    ? rawCc.map((r: any) => (typeof r === 'string' ? r : r?.address || r?.email || '')).filter(Boolean)
+    : typeof rawCc === 'string' ? [rawCc] : [];
+
   const auth = parsed?.authentication || parsed?.authentication_results || {};
   const relay = parsed?.received_chain || parsed?.routing_hops || parsed?.smtp_trace || {};
   const indicators = parsed?.indicators || {};
@@ -97,21 +109,14 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
   const domainIntel = caseData?.domain_intel || (caseData as any)?.infrastructure || (caseData as any)?.email_analysis?.infrastructure || { domains: [] };
   const urlIntel = caseData?.url_intel || (caseData as any)?.infrastructure || (caseData as any)?.email_analysis?.infrastructure || { urls: [] };
 
-  const toRecipients = Array.isArray(recips.to)
-    ? recips.to.map((r: any) => (typeof r === 'string' ? r : r?.address || r?.email || '')).filter(Boolean)
-    : typeof recips.to === 'string' ? [recips.to] : [];
-
-  const ccRecipients = Array.isArray(recips.cc)
-    ? recips.cc.map((r: any) => (typeof r === 'string' ? r : r?.address || r?.email || '')).filter(Boolean)
-    : typeof recips.cc === 'string' ? [recips.cc] : [];
-
-  const rawHeaders = parsed.raw_headers && typeof parsed.raw_headers === 'object' 
+  const rawHeaders = parsed?.raw_headers && typeof parsed.raw_headers === 'object' 
     ? parsed.raw_headers 
-    : typeof parsed.raw_headers === 'string' 
+    : typeof parsed?.raw_headers === 'string' 
     ? { 'Raw Headers': parsed.raw_headers }
     : {};
-  const emailHtml = parsed.html_body || parsed.body_html ? sanitizeHtml(parsed.html_body || parsed.body_html) : null;
-  const emailText = parsed.body || parsed.body_plain || '';
+
+  const emailHtml = (parsed?.html_body || parsed?.body_html) ? sanitizeHtml(parsed.html_body || parsed.body_html) : null;
+  const emailText = parsed?.body || parsed?.body_plain || '';
 
   const findingsCount = Array.isArray(forensicAnalysis?.findings) 
     ? forensicAnalysis.findings.length 
@@ -132,7 +137,7 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
   ];
 
   return (
-    <div className={`space-y-6 ${className || ''}`}>
+    <div className={`space-y-6 ${className}`}>
       
       {/* Top Header Card / Case Metadata Bar */}
       <Card className="border-cyber-borderLight">
@@ -190,7 +195,7 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
             {/* SHA-256 Copy */}
             {caseData?.evidence_hash && (
               <button
-                onClick={() => copyToClipboard(caseData.evidence_hash!, 'hash')}
+                onClick={() => copyToClipboard(caseData.evidence_hash, 'hash')}
                 className="px-3 py-1.5 rounded bg-cyber-bg border border-cyber-border hover:border-cyber-cyan/50 text-slate-300 font-mono text-[11px] flex items-center justify-between space-x-2 transition"
                 title="Copy SHA-256 evidence anchor"
               >
@@ -227,77 +232,37 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
         </div>
       </Card>
 
+      {/* ========================================================= */}
+      {/* PERSISTENT TAB CONTAINERS (No React Unmounting)           */}
+      {/* ========================================================= */}
+
       {/* TAB 1: EXECUTIVE SUMMARY */}
-      {activeTab === 'overview' && (
-        <div className="space-y-6">
-          {/* Top Row: Risk Hero + Threat Panel */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <RiskScoreHero riskAssessment={risk as any} />
-            <ThreatClassificationPanel threatAnalysis={threatAnalysis} />
-          </div>
-
-          {/* Second Row: Top Risk Factors + Auth Matrix */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <RiskFactorsList factors={risk.top_factors?.length ? risk.top_factors : (risk.risk_factors || [])} />
-            <AuthenticationMatrix
-              auth={auth}
-              alignment={{
-                spf_aligned: parsed?.authentication?.spf?.aligned,
-                dkim_aligned: parsed?.authentication?.dkim?.aligned,
-                dmarc_aligned: parsed?.authentication?.dmarc?.aligned,
-                dmarc_pass: parsed?.authentication?.dmarc?.status === 'pass',
-                header_from_domain: sender?.domain,
-                envelope_from_domain: parsed?.return_path?.domain,
-                dkim_domain: parsed?.authentication?.dkim?.domain,
-              }}
-            />
-          </div>
-
-          {/* Third Row: Identity Inspector + Relay Timeline */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <IdentityInspector
-              email={{
-                from: sender?.email || null,
-                from_display: sender?.display_name || null,
-                to: toRecipients,
-                cc: ccRecipients,
-                subject: headers?.subject || null,
-                date: headers?.date_iso || headers?.date_raw || null,
-                message_id: headers?.message_id || null,
-                reply_to: parsed?.reply_to?.email || null,
-                return_path: parsed?.return_path?.email || null,
-              }}
-              flags={indicators?.flags}
-            />
-            <RelayTimeline
-              smtpTrace={{
-                hop_count: relay?.hop_count || 0,
-                received_chain: relay?.chain || [],
-                public_ips: relay?.public_ips_observed || [],
-                earliest_node: relay?.earliest_observed_node || null,
-                confidence_note: relay?.confidence_note,
-              }}
-            />
-          </div>
+      <div className={activeTab === 'overview' ? 'block space-y-6' : 'hidden'} key="tab-overview">
+        {/* Top Row: Risk Hero + Threat Panel */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <RiskScoreHero riskAssessment={risk as any} />
+          <ThreatClassificationPanel threatAnalysis={threatAnalysis} />
         </div>
-      )}
 
-      {/* TAB 2: DEEP FORENSICS */}
-      {activeTab === 'forensics' && (
-        <div className="space-y-6">
-          <ForensicEvidencePanel forensics={forensicAnalysis} />
+        {/* Second Row: Top Risk Factors + Auth Matrix */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <RiskFactorsList factors={risk?.top_factors?.length ? risk.top_factors : (risk?.risk_factors || [])} />
           <AuthenticationMatrix
             auth={auth}
             alignment={{
-              spf_aligned: parsed?.authentication?.spf?.aligned,
-              dkim_aligned: parsed?.authentication?.dkim?.aligned,
-              dmarc_aligned: parsed?.authentication?.dmarc?.aligned,
+              spf_aligned: parsed?.authentication?.spf?.aligned ?? null,
+              dkim_aligned: parsed?.authentication?.dkim?.aligned ?? null,
+              dmarc_aligned: parsed?.authentication?.dmarc?.aligned ?? null,
               dmarc_pass: parsed?.authentication?.dmarc?.status === 'pass',
-              header_from_domain: sender?.domain,
-              envelope_from_domain: parsed?.return_path?.domain,
-              dkim_domain: parsed?.authentication?.dkim?.domain,
+              header_from_domain: sender?.domain || null,
+              envelope_from_domain: parsed?.return_path?.domain || parsed?.return_path || null,
+              dkim_domain: parsed?.authentication?.dkim?.domain || null,
             }}
           />
+        </div>
+
+        {/* Third Row: Identity Inspector + Relay Timeline */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <IdentityInspector
             email={{
               from: sender?.email || null,
@@ -305,93 +270,125 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
               to: toRecipients,
               cc: ccRecipients,
               subject: headers?.subject || null,
-              date: headers?.date_iso || headers?.date_raw || null,
+              date: headers?.date_iso || headers?.date_raw || headers?.date || null,
               message_id: headers?.message_id || null,
-              reply_to: parsed?.reply_to?.email || null,
-              return_path: parsed?.return_path?.email || null,
+              reply_to: parsed?.reply_to?.email || parsed?.reply_to || null,
+              return_path: parsed?.return_path?.email || parsed?.return_path || null,
             }}
-            flags={indicators?.flags}
+            flags={indicators?.flags || {}}
           />
           <RelayTimeline
             smtpTrace={{
               hop_count: relay?.hop_count || 0,
-              received_chain: relay?.chain || [],
-              public_ips: relay?.public_ips_observed || [],
-              earliest_node: relay?.earliest_observed_node || null,
-              confidence_note: relay?.confidence_note,
+              received_chain: relay?.chain || relay?.received_chain || [],
+              public_ips: relay?.public_ips_observed || relay?.public_ips || [],
+              earliest_node: relay?.earliest_observed_node || relay?.earliest_node || null,
+              confidence_note: relay?.confidence_note || null,
             }}
           />
         </div>
-      )}
+      </div>
+
+      {/* TAB 2: DEEP FORENSICS */}
+      <div className={activeTab === 'forensics' ? 'block space-y-6' : 'hidden'} key="tab-forensics">
+        <ForensicEvidencePanel forensics={forensicAnalysis} />
+        <AuthenticationMatrix
+          auth={auth}
+          alignment={{
+            spf_aligned: parsed?.authentication?.spf?.aligned ?? null,
+            dkim_aligned: parsed?.authentication?.dkim?.aligned ?? null,
+            dmarc_aligned: parsed?.authentication?.dmarc?.aligned ?? null,
+            dmarc_pass: parsed?.authentication?.dmarc?.status === 'pass',
+            header_from_domain: sender?.domain || null,
+            envelope_from_domain: parsed?.return_path?.domain || parsed?.return_path || null,
+            dkim_domain: parsed?.authentication?.dkim?.domain || null,
+          }}
+        />
+        <IdentityInspector
+          email={{
+            from: sender?.email || null,
+            from_display: sender?.display_name || null,
+            to: toRecipients,
+            cc: ccRecipients,
+            subject: headers?.subject || null,
+            date: headers?.date_iso || headers?.date_raw || headers?.date || null,
+            message_id: headers?.message_id || null,
+            reply_to: parsed?.reply_to?.email || parsed?.reply_to || null,
+            return_path: parsed?.return_path?.email || parsed?.return_path || null,
+          }}
+          flags={indicators?.flags || {}}
+        />
+        <RelayTimeline
+          smtpTrace={{
+            hop_count: relay?.hop_count || 0,
+            received_chain: relay?.chain || relay?.received_chain || [],
+            public_ips: relay?.public_ips_observed || relay?.public_ips || [],
+            earliest_node: relay?.earliest_observed_node || relay?.earliest_node || null,
+            confidence_note: relay?.confidence_note || null,
+          }}
+        />
+      </div>
 
       {/* TAB 3: THREAT INTELLIGENCE */}
-      {activeTab === 'threat' && (
-        <div className="space-y-6">
-          <ThreatClassificationPanel threatAnalysis={threatAnalysis} />
-          <RiskFactorsList factors={risk.top_factors?.length ? risk.top_factors : (risk.risk_factors || [])} />
-        </div>
-      )}
+      <div className={activeTab === 'threat' ? 'block space-y-6' : 'hidden'} key="tab-threat">
+        <ThreatClassificationPanel threatAnalysis={threatAnalysis} />
+        <RiskFactorsList factors={risk?.top_factors?.length ? risk.top_factors : (risk?.risk_factors || [])} />
+      </div>
 
       {/* TAB 4: INFRASTRUCTURE & GEO */}
-      {activeTab === 'infrastructure' && (
-        <div className="space-y-6">
-          <GeoMap ips={ipIntel?.ips || []} />
-          <InfrastructurePanel
-            infrastructure={{
-              summary: ipIntel?.summary || {},
-              ips: ipIntel?.ips || [],
-              domains: domainIntel?.domains || [],
-              urls: urlIntel?.urls || [],
-              limitations: [],
-            }}
-          />
-        </div>
-      )}
+      <div className={activeTab === 'infrastructure' ? 'block space-y-6' : 'hidden'} key="tab-infrastructure">
+        <GeoMap ips={ipIntel?.ips || []} />
+        <InfrastructurePanel
+          infrastructure={{
+            summary: ipIntel?.summary || {},
+            ips: ipIntel?.ips || [],
+            domains: domainIntel?.domains || [],
+            urls: urlIntel?.urls || [],
+            limitations: [],
+          }}
+        />
+      </div>
 
       {/* TAB 5: INVESTIGATION GRAPH */}
-      {activeTab === 'graph' && (
-        <div className="space-y-6">
-          <InvestigationGraphView
-            graph={correlationData?.graph || { nodes: [], edges: [] }}
-            selectedCaseId={caseId}
-            onSelectCase={onSelectRelatedCase}
-          />
-        </div>
-      )}
+      <div className={activeTab === 'graph' ? 'block space-y-6' : 'hidden'} key="tab-graph">
+        <InvestigationGraphView
+          graph={correlationData?.graph || { nodes: [], edges: [] }}
+          selectedCaseId={caseId}
+          onSelectCase={onSelectRelatedCase}
+        />
+      </div>
 
       {/* TAB 6: EVIDENCE INTEGRITY & BLOCKCHAIN ANCHORING */}
-      {activeTab === 'integrity' && (
+      <div className={activeTab === 'integrity' ? 'block space-y-6' : 'hidden'} key="tab-integrity">
         <EvidenceIntegrityPanel
           caseId={caseId}
           initialEvidenceHash={caseData?.evidence_hash}
         />
-      )}
+      </div>
 
       {/* TAB 7: EMAIL CONTENT (SAFE SANITIZED PREVIEW) */}
-      {activeTab === 'raw_email' && (
-        <div className="space-y-6">
-          <Card
-            title="EXTRACTED EMAIL BODY"
-            subtitle="Sandboxed defense-in-depth HTML rendering (scripts stripped, active clicks defanged)"
-            icon={<Mail className="w-4 h-4 text-cyber-cyan" />}
-          >
-            <div className="space-y-4">
-              {emailHtml ? (
-                <div className="p-4 rounded-lg bg-slate-900 border border-cyber-border max-h-[600px] overflow-y-auto">
-                  <div
-                    dangerouslySetInnerHTML={{ __html: emailHtml }}
-                    className="prose prose-invert max-w-none text-slate-200 text-xs"
-                  />
-                </div>
-              ) : (
-                <pre className="p-4 rounded-lg bg-cyber-surface border border-cyber-border font-mono text-xs text-slate-300 whitespace-pre-wrap max-h-[600px] overflow-y-auto">
-                  {emailText || '(No plain-text body content extracted)'}
-                </pre>
-              )}
-            </div>
-          </Card>
-        </div>
-      )}
+      <div className={activeTab === 'raw_email' ? 'block space-y-6' : 'hidden'} key="tab-raw_email">
+        <Card
+          title="EXTRACTED EMAIL BODY"
+          subtitle="Sandboxed defense-in-depth HTML rendering (scripts stripped, active clicks defanged)"
+          icon={<Mail className="w-4 h-4 text-cyber-cyan" />}
+        >
+          <div className="space-y-4">
+            {emailHtml ? (
+              <div className="p-4 rounded-lg bg-slate-900 border border-cyber-border max-h-[600px] overflow-y-auto">
+                <div
+                  dangerouslySetInnerHTML={{ __html: emailHtml }}
+                  className="prose prose-invert max-w-none text-slate-200 text-xs"
+                />
+              </div>
+            ) : (
+              <pre className="p-4 rounded-lg bg-cyber-surface border border-cyber-border font-mono text-xs text-slate-300 whitespace-pre-wrap max-h-[600px] overflow-y-auto">
+                {emailText || '(No plain-text body content extracted)'}
+              </pre>
+            )}
+          </div>
+        </Card>
+      </div>
 
       {/* Raw RFC 5322 Headers Modal */}
       <Modal
@@ -403,7 +400,7 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
       >
         <div className="space-y-4">
           <div className="p-3 bg-cyber-bg rounded-lg border border-cyber-border font-mono text-xs space-y-2 max-h-[65vh] overflow-y-auto">
-            {Object.keys(rawHeaders).length === 0 ? (
+            {!rawHeaders || Object.keys(rawHeaders).length === 0 ? (
               <div className="text-slate-500">No raw headers available.</div>
             ) : (
               Object.entries(rawHeaders).map(([hdrKey, val]) => (

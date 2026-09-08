@@ -57,14 +57,14 @@ export const App: React.FC = () => {
     try {
       const readyRes = await checkReadiness();
       setApiConnected(true);
-      if (readyRes.db_info) {
+      if (readyRes?.db_info) {
         setDbStatus(readyRes.db_info);
       }
     } catch {
       try {
         const healthRes = await checkHealth();
         setApiConnected(true);
-        if (healthRes.db_info) {
+        if (healthRes?.db_info) {
           setDbStatus({
             ...healthRes.db_info,
             status: 'unreachable',
@@ -82,7 +82,7 @@ export const App: React.FC = () => {
     try {
       setIsLoading(true);
       const data = await fetchCases(1, 100);
-      setCases(data);
+      setCases(Array.isArray(data) ? data : []);
       setErrorMessage(null);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to retrieve cases.');
@@ -94,7 +94,7 @@ export const App: React.FC = () => {
   const loadGlobalCorrelation = useCallback(async () => {
     try {
       const data = await fetchGlobalCorrelation();
-      setGlobalCorrelation(data);
+      setGlobalCorrelation(data || null);
     } catch (err: any) {
       console.warn('Global correlation load warning:', err.message);
     }
@@ -112,15 +112,16 @@ export const App: React.FC = () => {
 
   // Load a single case for deep forensic workspace
   const handleSelectCase = async (caseId: string) => {
+    if (!caseId) return;
     try {
       setIsLoading(true);
       setActiveCaseId(caseId);
       const detail = await fetchCase(caseId);
-      setActiveCaseDetail(detail);
+      setActiveCaseDetail(detail || null);
 
       try {
         const corr = await fetchCaseCorrelation(caseId);
-        setActiveCaseCorrelation(corr);
+        setActiveCaseCorrelation(corr || null);
       } catch {
         setActiveCaseCorrelation(null);
       }
@@ -148,11 +149,44 @@ export const App: React.FC = () => {
 
   // Called when user clicks "Inspect Full Investigation"
   const handleUploadComplete = async (uploadRes: UploadResponse) => {
+    if (!uploadRes?.case_id) return;
     setLatestUpload(uploadRes);
     await loadCaseList();
     await loadGlobalCorrelation();
     await handleSelectCase(uploadRes.case_id);
   };
+
+  // Defensive extraction for GeoMap IPs from global correlation
+  const geoMapIps = Array.isArray(globalCorrelation?.graph?.nodes)
+    ? globalCorrelation.graph.nodes
+        .filter((n) => n && n.type === 'IP' && n.label)
+        .map((n) => ({
+          ip: n.label || '',
+          version: 4 as const,
+          classification: 'PUBLIC' as const,
+          geo: {
+            country: n.metadata?.country || null,
+            country_code: n.metadata?.country_code || null,
+            region: n.metadata?.region || null,
+            city: n.metadata?.city || null,
+            latitude: typeof n.metadata?.latitude === 'number' ? n.metadata.latitude : null,
+            longitude: typeof n.metadata?.longitude === 'number' ? n.metadata.longitude : null,
+            timezone: null,
+            source: 'local_db',
+            status: 'resolved',
+          },
+          asn: {
+            asn: n.metadata?.asn || null,
+            organization: n.metadata?.organization || null,
+            network: null,
+            registry: null,
+            source: 'local_db',
+            status: 'resolved',
+          },
+          source: 'local_db',
+          status: 'resolved',
+        }))
+    : [];
 
   return (
     <div className="min-h-screen flex flex-col bg-cyber-bg text-cyber-text">
@@ -209,133 +243,90 @@ export const App: React.FC = () => {
             />
           </ErrorBoundary>
         ) : (
-          /* TAB ROUTING (When no specific case is locked in focus) */
+          /* TAB ROUTING WITH STATE PERSISTENCE (No Component Unmounting) */
           <ErrorBoundary
             fallbackTitle="INVESTIGATION VIEW ERROR"
             onReset={handleResetCase}
           >
             {/* OVERVIEW & INGEST TAB */}
-            {activeTab === 'overview' && (
-              <div className="space-y-12">
-                <UploadZone
-                  onUploadSuccess={handleUploadSuccess}
-                  onAnalysisComplete={handleUploadComplete}
-                  onViewInvestigations={() => {
-                    setActiveTab('cases');
-                    loadCaseList();
-                  }}
-                />
+            <div className={activeTab === 'overview' ? 'block space-y-12' : 'hidden'} key="global-tab-overview">
+              <UploadZone
+                onUploadSuccess={handleUploadSuccess}
+                onAnalysisComplete={handleUploadComplete}
+                onViewInvestigations={() => {
+                  setActiveTab('cases');
+                  loadCaseList();
+                }}
+              />
 
-                {/* Recent Cases Quick Grid */}
-                {cases.length > 0 && (
-                  <div className="pt-4 border-t border-cyber-border/60">
-                    <CaseListView
-                      cases={cases.slice(0, 5)}
-                      isLoading={isLoading}
-                      onRefresh={loadCaseList}
-                      onSelectCase={handleSelectCase}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
+              {/* Recent Cases Quick Grid */}
+              {Array.isArray(cases) && cases.length > 0 && (
+                <div className="pt-4 border-t border-cyber-border/60">
+                  <CaseListView
+                    cases={cases.slice(0, 5)}
+                    isLoading={isLoading}
+                    onRefresh={loadCaseList}
+                    onSelectCase={handleSelectCase}
+                  />
+                </div>
+              )}
+            </div>
 
             {/* FORENSICS TAB */}
-            {activeTab === 'forensics' && (
-              <div className="space-y-6">
-                <div className="p-4 rounded-xl bg-cyber-surface border border-cyber-border text-center space-y-2">
-                  <h2 className="font-mono text-base font-bold text-slate-100 uppercase tracking-wide">
-                    FORENSIC EVIDENCE REPOSITORY
-                  </h2>
-                  <p className="text-xs text-slate-400 max-w-xl mx-auto">
-                    Select a recorded case below or ingest a new .eml file to audit SPF/DKIM/DMARC alignments, Received relay timelines, and identity discrepancies.
-                  </p>
-                </div>
-                <CaseListView
-                  cases={cases}
-                  isLoading={isLoading}
-                  onRefresh={loadCaseList}
-                  onSelectCase={handleSelectCase}
-                />
+            <div className={activeTab === 'forensics' ? 'block space-y-6' : 'hidden'} key="global-tab-forensics">
+              <div className="p-4 rounded-xl bg-cyber-surface border border-cyber-border text-center space-y-2">
+                <h2 className="font-mono text-base font-bold text-slate-100 uppercase tracking-wide">
+                  FORENSIC EVIDENCE REPOSITORY
+                </h2>
+                <p className="text-xs text-slate-400 max-w-xl mx-auto">
+                  Select a recorded case below or ingest a new .eml file to audit SPF/DKIM/DMARC alignments, Received relay timelines, and identity discrepancies.
+                </p>
               </div>
-            )}
+              <CaseListView
+                cases={cases}
+                isLoading={isLoading}
+                onRefresh={loadCaseList}
+                onSelectCase={handleSelectCase}
+              />
+            </div>
 
             {/* INFRASTRUCTURE & GEO TAB */}
-            {activeTab === 'infrastructure' && (
-              <div className="space-y-6">
-                <GeoMap
-                  ips={
-                    globalCorrelation?.graph?.nodes
-                      ?.filter((n) => n.type === 'IP')
-                      ?.map((n) => ({
-                        ip: n.label,
-                        version: 4,
-                        classification: 'PUBLIC',
-                        geo: {
-                          country: n.metadata?.country || null,
-                          country_code: n.metadata?.country_code || null,
-                          region: n.metadata?.region || null,
-                          city: n.metadata?.city || null,
-                          latitude: n.metadata?.latitude || null,
-                          longitude: n.metadata?.longitude || null,
-                          timezone: null,
-                          source: 'local_db',
-                          status: 'resolved',
-                        },
-                        asn: {
-                          asn: n.metadata?.asn || null,
-                          organization: n.metadata?.organization || null,
-                          network: null,
-                          registry: null,
-                          source: 'local_db',
-                          status: 'resolved',
-                        },
-                        source: 'local_db',
-                        status: 'resolved',
-                      })) || []
-                  }
-                />
-                <CaseListView
-                  cases={cases}
-                  isLoading={isLoading}
-                  onRefresh={loadCaseList}
-                  onSelectCase={handleSelectCase}
-                />
-              </div>
-            )}
+            <div className={activeTab === 'infrastructure' ? 'block space-y-6' : 'hidden'} key="global-tab-infrastructure">
+              <GeoMap ips={geoMapIps} />
+              <CaseListView
+                cases={cases}
+                isLoading={isLoading}
+                onRefresh={loadCaseList}
+                onSelectCase={handleSelectCase}
+              />
+            </div>
 
             {/* INVESTIGATION GRAPH TAB */}
-            {activeTab === 'graph' && (
-              <div className="space-y-6">
-                <InvestigationGraphView
-                  graph={globalCorrelation?.graph}
-                  onSelectCase={handleSelectCase}
-                />
-              </div>
-            )}
+            <div className={activeTab === 'graph' ? 'block space-y-6' : 'hidden'} key="global-tab-graph">
+              <InvestigationGraphView
+                graph={globalCorrelation?.graph || { nodes: [], edges: [] }}
+                onSelectCase={handleSelectCase}
+              />
+            </div>
 
             {/* CAMPAIGN CLUSTERS TAB */}
-            {activeTab === 'campaigns' && (
-              <div className="space-y-6">
-                <CampaignClusterView
-                  campaigns={globalCorrelation?.campaigns}
-                  correlations={globalCorrelation?.correlations}
-                  onSelectCase={handleSelectCase}
-                />
-              </div>
-            )}
+            <div className={activeTab === 'campaigns' ? 'block space-y-6' : 'hidden'} key="global-tab-campaigns">
+              <CampaignClusterView
+                campaigns={Array.isArray(globalCorrelation?.campaigns) ? globalCorrelation.campaigns : []}
+                correlations={Array.isArray(globalCorrelation?.correlations) ? globalCorrelation.correlations : []}
+                onSelectCase={handleSelectCase}
+              />
+            </div>
 
             {/* CASE REPOSITORY TAB */}
-            {activeTab === 'cases' && (
-              <div className="space-y-6">
-                <CaseListView
-                  cases={cases}
-                  isLoading={isLoading}
-                  onRefresh={loadCaseList}
-                  onSelectCase={handleSelectCase}
-                />
-              </div>
-            )}
+            <div className={activeTab === 'cases' ? 'block space-y-6' : 'hidden'} key="global-tab-cases">
+              <CaseListView
+                cases={cases}
+                isLoading={isLoading}
+                onRefresh={loadCaseList}
+                onSelectCase={handleSelectCase}
+              />
+            </div>
           </ErrorBoundary>
         )}
 

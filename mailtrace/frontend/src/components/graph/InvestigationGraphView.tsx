@@ -130,15 +130,15 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
   const arrowMarkerId = useId();
   const arrowSelectedId = useId();
 
-  const rawNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
-  const rawEdges = Array.isArray(graph?.edges) ? graph.edges : [];
+  const rawNodes = Array.isArray(graph?.nodes) ? graph.nodes.filter(Boolean) : [];
+  const rawEdges = Array.isArray(graph?.edges) ? graph.edges.filter(Boolean) : [];
 
   // Filter nodes by type & search criteria
   const filteredNodes = useMemo(() => {
     return rawNodes.filter((node) => {
-      if (!node) return false;
+      if (!node || !node.id) return false;
       const matchesType = activeFilter === 'ALL' || node.type === activeFilter;
-      const label = String(node.label || '');
+      const label = String(node.label || node.id || '');
       const id = String(node.id || '');
       const matchesSearch = !searchQuery || 
         label.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -147,11 +147,11 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
     });
   }, [rawNodes, activeFilter, searchQuery]);
 
-  const activeNodeIds = useMemo(() => new Set(filteredNodes.map(n => n.id)), [filteredNodes]);
+  const activeNodeIds = useMemo(() => new Set(filteredNodes.map(n => n.id).filter(Boolean)), [filteredNodes]);
 
   const visibleEdges = useMemo(() => {
     return rawEdges.filter(
-      (edge) => edge && activeNodeIds.has(edge.source) && activeNodeIds.has(edge.target)
+      (edge) => edge && edge.source && edge.target && activeNodeIds.has(edge.source) && activeNodeIds.has(edge.target)
     );
   }, [rawEdges, activeNodeIds]);
 

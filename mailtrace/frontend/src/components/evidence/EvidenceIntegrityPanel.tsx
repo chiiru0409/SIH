@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ShieldCheck,
   ShieldAlert,
@@ -9,7 +9,6 @@ import {
   RefreshCw,
   Terminal,
   CheckCircle2,
-  XCircle,
   AlertTriangle,
   Blocks,
   FileCode2,
@@ -17,9 +16,7 @@ import {
   Check,
   ChevronRight,
   HardDrive,
-  Cpu,
-  Layers,
-  Sparkles
+  Cpu
 } from 'lucide-react';
 import { truncateHash, formatDate } from '../../lib/utils';
 import {
@@ -31,8 +28,7 @@ import {
 import type {
   EvidenceManifestResponse,
   EvidenceVerifyResponse,
-  ChainOfCustodyEvent,
-  BlockchainAnchorResponse
+  ChainOfCustodyEvent
 } from '../../types/api';
 
 export interface EvidenceIntegrityPanelProps {
@@ -58,7 +54,13 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'LEDGER' | 'COMMITMENTS' | 'BLOCKCHAIN'>('LEDGER');
 
+  const isMountedRef = useRef<boolean>(true);
+
   const loadEvidenceData = async () => {
+    if (!caseId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -66,50 +68,75 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
         fetchEvidenceManifest(caseId),
         fetchChainOfCustody(caseId),
       ]);
-      setManifest(manifestData);
-      setEvents(chainData.events || []);
-      setChainValid(chainData.chain_valid);
+      if (isMountedRef.current) {
+        setManifest(manifestData || null);
+        setEvents(Array.isArray(chainData?.events) ? chainData.events : []);
+        setChainValid(chainData?.chain_valid ?? true);
+      }
     } catch (err: any) {
-      setError(err.message || 'Failed to load evidence manifest from cryptographic backend.');
+      if (isMountedRef.current) {
+        setError(err?.message || 'Failed to load evidence manifest from cryptographic backend.');
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
+    isMountedRef.current = true;
     loadEvidenceData();
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [caseId]);
 
   const handleVerify = async () => {
+    if (!caseId) return;
     setVerifying(true);
     setError(null);
     try {
       const result = await verifyEvidence(caseId);
-      setVerification(result);
+      if (isMountedRef.current) {
+        setVerification(result || null);
+      }
       const chainData = await fetchChainOfCustody(caseId);
-      setEvents(chainData.events || []);
-      setChainValid(chainData.chain_valid);
+      if (isMountedRef.current) {
+        setEvents(Array.isArray(chainData?.events) ? chainData.events : []);
+        setChainValid(chainData?.chain_valid ?? true);
+      }
     } catch (err: any) {
-      setError(err.message || 'Cryptographic verification sequence failed.');
+      if (isMountedRef.current) {
+        setError(err?.message || 'Cryptographic verification sequence failed.');
+      }
     } finally {
-      setVerifying(false);
+      if (isMountedRef.current) {
+        setVerifying(false);
+      }
     }
   };
 
   const handleAnchor = async () => {
+    if (!caseId) return;
     setAnchoring(true);
     setError(null);
     try {
       await anchorEvidence(caseId);
       await loadEvidenceData();
     } catch (err: any) {
-      setError(err.message || 'Ledger anchoring sequence failed.');
+      if (isMountedRef.current) {
+        setError(err?.message || 'Ledger anchoring sequence failed.');
+      }
     } finally {
-      setAnchoring(false);
+      if (isMountedRef.current) {
+        setAnchoring(false);
+      }
     }
   };
 
-  const copyToClipboard = (text: string, field: string) => {
+  const copyToClipboard = (text?: string | null, field?: string) => {
+    if (!text || !field) return;
     navigator.clipboard.writeText(text);
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
@@ -121,7 +148,7 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `evidence_manifest_${caseId}.json`;
+    a.download = `evidence_manifest_${caseId || 'export'}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -130,7 +157,7 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
   const fileHash = manifest?.file_sha256 || initialEvidenceHash || '';
   const parsedHash = manifest?.parsed_evidence_sha256 || '';
   const analysisHash = manifest?.analysis_sha256 || '';
-  const blockchain = manifest?.blockchain_anchoring;
+  const blockchain = manifest?.blockchain_anchoring || null;
 
   if (loading) {
     return (
@@ -144,7 +171,7 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
             [ INITIALIZING FORENSIC CRYPTOGRAPHIC ENGINE ]
           </div>
           <p className="text-[11px] text-slate-500">
-            Querying SHA-256 commitments & verifying merkle hash chain integrity for case: {caseId}…
+            Querying SHA-256 commitments & verifying merkle hash chain integrity for case: {caseId || 'CURRENT'}…
           </p>
         </div>
       </div>
@@ -154,15 +181,12 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
   return (
     <div className={`space-y-6 ${className}`}>
       
-      {/* ========================================================= */}
-      {/* LIVE FORENSIC TERMINAL WINDOW CONTAINER                   */}
-      {/* ========================================================= */}
+      {/* LIVE FORENSIC TERMINAL WINDOW CONTAINER */}
       <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-black/95 shadow-[0_0_50px_rgba(0,0,0,0.8)] backdrop-blur-md">
         
         {/* TOP WINDOW TITLEBAR WITH macOS TRAFFIC LIGHTS */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-950/90 px-4 py-2.5 font-mono text-xs select-none">
           
-          {/* Traffic Light Controls & Session Header */}
           <div className="flex items-center space-x-3">
             <div className="flex items-center space-x-1.5">
               <span className="h-3 w-3 rounded-full bg-rose-500/90 border border-rose-600/80 shadow-[0_0_6px_rgba(244,63,94,0.6)] cursor-pointer" />
@@ -177,12 +201,11 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
               </span>
               <span className="text-slate-600">|</span>
               <span className="text-slate-500 text-[10px]">
-                CASE-{caseId.slice(0, 8)}
+                CASE-{caseId ? caseId.slice(0, 8) : 'ACTIVE'}
               </span>
             </div>
           </div>
 
-          {/* Security Standard Indicators */}
           <div className="flex items-center space-x-3 text-[10px]">
             <span className="flex items-center space-x-1.5 rounded bg-cyan-950/70 border border-cyan-500/40 px-2 py-0.5 text-cyan-300 font-bold">
               <Lock className="h-3 w-3 text-cyan-400" />
@@ -209,7 +232,6 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
               </p>
             </div>
 
-            {/* Terminal Actions Pod */}
             <div className="flex flex-wrap items-center gap-2 shrink-0">
               <button
                 onClick={handleVerify}
@@ -333,159 +355,154 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
             </button>
           </div>
 
-          {/* TAB 1: CHAIN OF CUSTODY LEDGER (LIVE SCROLLING CLI OUTPUT) */}
-          {activeTab === 'LEDGER' && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-[11px] text-slate-400 pb-1">
-                <span className="flex items-center space-x-1.5">
-                  <span className={`h-2 w-2 rounded-full ${chainValid ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
-                  <span>AUDIT TRAIL INTEGRITY: {chainValid ? 'UNBROKEN DETERMINISTIC CHAIN' : 'HASH MISMATCH DETECTED'}</span>
-                </span>
-                <span>TOTAL EVENTS LOGGED: {events.length}</span>
-              </div>
-
-              {/* Scrolling Terminal Output Container */}
-              <div className="max-h-[380px] overflow-y-auto space-y-2 rounded-lg bg-slate-950 p-3.5 border border-slate-800 text-[11px] font-mono leading-relaxed">
-                {events.length === 0 ? (
-                  <div className="py-8 text-center text-slate-500">
-                    [ NO HISTORICAL CHAIN EVENTS DETECTED IN STORAGE LEDGER ]
-                  </div>
-                ) : (
-                  events.map((ev, idx) => (
-                    <div 
-                      key={`ev-${ev.id || idx}-${idx}`}
-                      className="group relative rounded border border-slate-800/80 bg-slate-900/50 p-2.5 transition hover:border-cyan-500/40 hover:bg-slate-900/90"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-1 text-slate-400 mb-1">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-cyan-400 font-bold">#{String(idx + 1).padStart(2, '0')}</span>
-                          <span className="px-1.5 py-0.2 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300 font-bold uppercase text-[10px]">
-                            {ev.event_type}
-                          </span>
-                          <span className="text-slate-500">[{formatDate(ev.timestamp)}]</span>
-                        </div>
-                        <span className="text-[10px] text-slate-500">
-                          PREV: {ev.previous_event_hash ? truncateHash(ev.previous_event_hash, 6) : '0x0000 (GENESIS)'}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1.5 pt-1.5 border-t border-slate-800/60 text-[11px]">
-                        <div className="flex items-center justify-between text-slate-400">
-                          <span>Evidence Hash:</span>
-                          <span className="text-cyan-400 font-bold">{truncateHash(ev.evidence_hash || ev.event_hash, 8)}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-slate-400">
-                          <span>Event Commitment:</span>
-                          <span className="text-slate-200">{truncateHash(ev.event_hash, 8)}</span>
-                        </div>
-                      </div>
-
-                      {ev.metadata && Object.keys(ev.metadata).length > 0 && (
-                        <div className="mt-1.5 p-1.5 rounded bg-black/60 text-[10px] text-slate-400 overflow-x-auto">
-                          <span className="text-slate-500">META: </span>
-                          <span>{JSON.stringify(ev.metadata)}</span>
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
+          {/* TAB 1: CHAIN OF CUSTODY LEDGER */}
+          <div className={activeTab === 'LEDGER' ? 'block space-y-3' : 'hidden'}>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 pb-1">
+              <span className="flex items-center space-x-1.5">
+                <span className={`h-2 w-2 rounded-full ${chainValid ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
+                <span>AUDIT TRAIL INTEGRITY: {chainValid ? 'UNBROKEN DETERMINISTIC CHAIN' : 'HASH MISMATCH DETECTED'}</span>
+              </span>
+              <span>TOTAL EVENTS LOGGED: {events.length}</span>
             </div>
-          )}
+
+            <div className="max-h-[380px] overflow-y-auto space-y-2 rounded-lg bg-slate-950 p-3.5 border border-slate-800 text-[11px] font-mono leading-relaxed">
+              {events.length === 0 ? (
+                <div className="py-8 text-center text-slate-500">
+                  [ NO HISTORICAL CHAIN EVENTS DETECTED IN STORAGE LEDGER ]
+                </div>
+              ) : (
+                events.map((ev, idx) => (
+                  <div 
+                    key={`ev-${ev?.id || idx}-${idx}`}
+                    className="group relative rounded border border-slate-800/80 bg-slate-900/50 p-2.5 transition hover:border-cyan-500/40 hover:bg-slate-900/90"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-1 text-slate-400 mb-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-cyan-400 font-bold">#{String(idx + 1).padStart(2, '0')}</span>
+                        <span className="px-1.5 py-0.2 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300 font-bold uppercase text-[10px]">
+                          {ev?.event_type || 'RECORD'}
+                        </span>
+                        <span className="text-slate-500">[{formatDate(ev?.timestamp)}]</span>
+                      </div>
+                      <span className="text-[10px] text-slate-500">
+                        PREV: {ev?.previous_event_hash ? truncateHash(ev.previous_event_hash, 6) : '0x0000 (GENESIS)'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1.5 pt-1.5 border-t border-slate-800/60 text-[11px]">
+                      <div className="flex items-center justify-between text-slate-400">
+                        <span>Evidence Hash:</span>
+                        <span className="text-cyan-400 font-bold">{truncateHash(ev?.evidence_hash || ev?.event_hash, 8)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-400">
+                        <span>Event Commitment:</span>
+                        <span className="text-slate-200">{truncateHash(ev?.event_hash, 8)}</span>
+                      </div>
+                    </div>
+
+                    {ev?.metadata && typeof ev.metadata === 'object' && Object.keys(ev.metadata).length > 0 && (
+                      <div className="mt-1.5 p-1.5 rounded bg-black/60 text-[10px] text-slate-400 overflow-x-auto">
+                        <span className="text-slate-500">META: </span>
+                        <span>{JSON.stringify(ev.metadata)}</span>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
 
           {/* TAB 2: CRYPTOGRAPHIC COMMITMENTS MATRIX */}
-          {activeTab === 'COMMITMENTS' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              
-              {/* 1. Original File Raw Bytes SHA-256 */}
-              <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-cyan-500/40 transition space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
-                    <FileCheck2 className="h-3.5 w-3.5 text-cyan-400" />
-                    <span>Raw File SHA-256</span>
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded bg-cyan-950/70 border border-cyan-500/30 text-cyan-300 text-[9px] font-bold uppercase">
-                    Raw Bytes
-                  </span>
-                </div>
-                <div className="relative group">
-                  <div className="p-2.5 rounded bg-black border border-slate-800 text-cyan-400 font-bold break-all text-[11px] select-all shadow-inner">
-                    {fileHash || 'N/A'}
-                  </div>
-                  <button
-                    onClick={() => copyToClipboard(fileHash, 'fileHash')}
-                    className="mt-1.5 w-full flex items-center justify-center space-x-1 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-400 hover:border-cyan-500/40 text-[10px] transition"
-                  >
-                    {copiedField === 'fileHash' ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-                    <span>{copiedField === 'fileHash' ? 'COPIED TO CLIPBOARD' : 'COPY HASH'}</span>
-                  </button>
-                </div>
-                <div className="text-[10px] text-slate-500 pt-1">
-                  Size: {manifest?.file_size_bytes ? `${manifest.file_size_bytes} B` : 'Verified Source'}
-                </div>
+          <div className={activeTab === 'COMMITMENTS' ? 'grid grid-cols-1 md:grid-cols-3 gap-4' : 'hidden'}>
+            
+            {/* 1. Raw File SHA-256 */}
+            <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-cyan-500/40 transition space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
+                  <FileCheck2 className="h-3.5 w-3.5 text-cyan-400" />
+                  <span>Raw File SHA-256</span>
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-cyan-950/70 border border-cyan-500/30 text-cyan-300 text-[9px] font-bold uppercase">
+                  Raw Bytes
+                </span>
               </div>
-
-              {/* 2. Parsed Evidence Canonical JSON SHA-256 */}
-              <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-emerald-500/40 transition space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
-                    <FileCode2 className="h-3.5 w-3.5 text-emerald-400" />
-                    <span>Parsed Structure SHA-256</span>
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded bg-emerald-950/70 border border-emerald-500/30 text-emerald-300 text-[9px] font-bold uppercase">
-                    Canonical JSON
-                  </span>
+              <div className="relative group">
+                <div className="p-2.5 rounded bg-black border border-slate-800 text-cyan-400 font-bold break-all text-[11px] select-all shadow-inner">
+                  {fileHash || 'N/A'}
                 </div>
-                <div className="relative group">
-                  <div className="p-2.5 rounded bg-black border border-slate-800 text-cyan-400 font-bold break-all text-[11px] select-all shadow-inner">
-                    {parsedHash || 'N/A'}
-                  </div>
-                  <button
-                    onClick={() => copyToClipboard(parsedHash, 'parsedHash')}
-                    className="mt-1.5 w-full flex items-center justify-center space-x-1 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-400 hover:border-cyan-500/40 text-[10px] transition"
-                  >
-                    {copiedField === 'parsedHash' ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-                    <span>{copiedField === 'parsedHash' ? 'COPIED TO CLIPBOARD' : 'COPY HASH'}</span>
-                  </button>
-                </div>
-                <div className="text-[10px] text-slate-500 pt-1">
-                  Deterministic MIME Attribute Mapping
-                </div>
+                <button
+                  onClick={() => copyToClipboard(fileHash, 'fileHash')}
+                  className="mt-1.5 w-full flex items-center justify-center space-x-1 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-400 hover:border-cyan-500/40 text-[10px] transition"
+                >
+                  {copiedField === 'fileHash' ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                  <span>{copiedField === 'fileHash' ? 'COPIED TO CLIPBOARD' : 'COPY HASH'}</span>
+                </button>
               </div>
-
-              {/* 3. Forensic Analysis Findings SHA-256 */}
-              <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-purple-500/40 transition space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
-                    <Cpu className="h-3.5 w-3.5 text-purple-400" />
-                    <span>Analysis Record SHA-256</span>
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded bg-purple-950/70 border border-purple-500/30 text-purple-300 text-[9px] font-bold uppercase">
-                    Risk & Intel
-                  </span>
-                </div>
-                <div className="relative group">
-                  <div className="p-2.5 rounded bg-black border border-slate-800 text-cyan-400 font-bold break-all text-[11px] select-all shadow-inner">
-                    {analysisHash || 'N/A'}
-                  </div>
-                  <button
-                    onClick={() => copyToClipboard(analysisHash, 'analysisHash')}
-                    className="mt-1.5 w-full flex items-center justify-center space-x-1 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-400 hover:border-cyan-500/40 text-[10px] transition"
-                  >
-                    {copiedField === 'analysisHash' ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-                    <span>{copiedField === 'analysisHash' ? 'COPIED TO CLIPBOARD' : 'COPY HASH'}</span>
-                  </button>
-                </div>
-                <div className="text-[10px] text-slate-500 pt-1">
-                  Immutable Risk & Anomaly Assessment
-                </div>
+              <div className="text-[10px] text-slate-500 pt-1">
+                Size: {manifest?.file_size_bytes ? `${manifest.file_size_bytes} B` : 'Verified Source'}
               </div>
-
             </div>
-          )}
+
+            {/* 2. Parsed Structure SHA-256 */}
+            <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-emerald-500/40 transition space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
+                  <FileCode2 className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Parsed Structure SHA-256</span>
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-emerald-950/70 border border-emerald-500/30 text-emerald-300 text-[9px] font-bold uppercase">
+                  Canonical JSON
+                </span>
+              </div>
+              <div className="relative group">
+                <div className="p-2.5 rounded bg-black border border-slate-800 text-cyan-400 font-bold break-all text-[11px] select-all shadow-inner">
+                  {parsedHash || 'N/A'}
+                </div>
+                <button
+                  onClick={() => copyToClipboard(parsedHash, 'parsedHash')}
+                  className="mt-1.5 w-full flex items-center justify-center space-x-1 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-400 hover:border-cyan-500/40 text-[10px] transition"
+                >
+                  {copiedField === 'parsedHash' ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                  <span>{copiedField === 'parsedHash' ? 'COPIED TO CLIPBOARD' : 'COPY HASH'}</span>
+                </button>
+              </div>
+              <div className="text-[10px] text-slate-500 pt-1">
+                Deterministic MIME Attribute Mapping
+              </div>
+            </div>
+
+            {/* 3. Analysis Record SHA-256 */}
+            <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-purple-500/40 transition space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
+                  <Cpu className="h-3.5 w-3.5 text-purple-400" />
+                  <span>Analysis Record SHA-256</span>
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-purple-950/70 border border-purple-500/30 text-purple-300 text-[9px] font-bold uppercase">
+                  Risk & Intel
+                </span>
+              </div>
+              <div className="relative group">
+                <div className="p-2.5 rounded bg-black border border-slate-800 text-cyan-400 font-bold break-all text-[11px] select-all shadow-inner">
+                  {analysisHash || 'N/A'}
+                </div>
+                <button
+                  onClick={() => copyToClipboard(analysisHash, 'analysisHash')}
+                  className="mt-1.5 w-full flex items-center justify-center space-x-1 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-400 hover:border-cyan-500/40 text-[10px] transition"
+                >
+                  {copiedField === 'analysisHash' ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                  <span>{copiedField === 'analysisHash' ? 'COPIED TO CLIPBOARD' : 'COPY HASH'}</span>
+                </button>
+              </div>
+              <div className="text-[10px] text-slate-500 pt-1">
+                Immutable Risk & Anomaly Assessment
+              </div>
+            </div>
+
+          </div>
 
           {/* TAB 3: BLOCKCHAIN PROOF */}
-          {activeTab === 'BLOCKCHAIN' && (
+          <div className={activeTab === 'BLOCKCHAIN' ? 'block space-y-3' : 'hidden'}>
             <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-3">
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                 <span className="text-xs font-bold text-purple-300 flex items-center space-x-1.5">
@@ -519,13 +536,11 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
                 </div>
               )}
             </div>
-          )}
+          </div>
 
         </div>
 
-        {/* ========================================================= */}
-        {/* BOTTOM ANCHOR STATUS INDICATOR (PULSING GREEN STATUS)      */}
-        {/* ========================================================= */}
+        {/* BOTTOM ANCHOR STATUS INDICATOR */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/80 bg-slate-950 px-5 py-3 font-mono text-xs">
           
           <div className="flex items-center space-x-2.5">
@@ -561,7 +576,7 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
 
       </div>
 
-      {/* Forensic Attribution Notice Console */}
+      {/* Forensic Attribution Disclaimer Console */}
       <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-4 font-mono text-xs text-slate-400">
         <div className="flex items-start space-x-3">
           <ShieldAlert className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
