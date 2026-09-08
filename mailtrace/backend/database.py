@@ -62,12 +62,28 @@ async def get_db() -> AsyncSession:
             await session.close()
 
 
-# ------------------------------------------------------------------ #
-#  Table creation helper (called at startup)                          #
-# ------------------------------------------------------------------ #
 async def init_db() -> None:
-    """Create all tables that don't exist yet. Safe to call on every startup."""
+    """Create all tables that don't exist yet and run safe additive migrations."""
     async with engine.begin() as conn:
         # Import all models so Base.metadata knows about them
-        from backend.models import analysis  # noqa: F401
+        from backend.models import analysis, evidence  # noqa: F401
         await conn.run_sync(Base.metadata.create_all)
+
+        def _migrate(sync_conn):
+            from sqlalchemy import text
+            try:
+                res = sync_conn.execute(text("PRAGMA table_info(analysis_cases)"))
+                cols = {row[1] for row in res.fetchall()}
+                new_cols = {
+                    "parsed_evidence_hash": "VARCHAR(64)",
+                    "analysis_hash": "VARCHAR(64)",
+                    "blockchain_tx_id": "VARCHAR(128)",
+                    "blockchain_anchor_data": "JSON",
+                }
+                for col_name, col_type in new_cols.items():
+                    if col_name not in cols:
+                        sync_conn.execute(text(f"ALTER TABLE analysis_cases ADD COLUMN {col_name} {col_type}"))
+            except Exception:
+                pass
+
+        await conn.run_sync(_migrate)

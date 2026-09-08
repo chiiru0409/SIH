@@ -23,6 +23,11 @@ from backend.models.analysis import AnalysisCase
 from backend.schemas.analysis import CaseDetail, CaseSummary, UploadResponse
 from backend.services.email_parser import parse_email
 from backend.services.evidence import build_evidence_record, sha256_bytes
+from backend.services.evidence_integrity import (
+    compute_analysis_hash,
+    compute_parsed_evidence_hash,
+    record_chain_event,
+)
 from backend.services.forensics import run_forensic_analysis
 from backend.services.intelligence import enrich_infrastructure
 from backend.services.risk_engine import calculate_risk
@@ -303,6 +308,10 @@ async def upload_eml(
             "limitations": [],
         }
 
+    # ---- Step 9: Compute integrity commitments ----
+    parsed_evidence_hash = compute_parsed_evidence_hash(parsed)
+    analysis_hash = compute_analysis_hash(forensic_data, threat_data, risk_data)
+
     # ---- Persist to database ----
     case = AnalysisCase(
         id=case_id,
@@ -320,11 +329,36 @@ async def upload_eml(
         risk_reasons=risk_data,
         status=case_status,
         evidence_hash=evidence["file_sha256"],
+        parsed_evidence_hash=parsed_evidence_hash,
+        analysis_hash=analysis_hash,
     )
 
     try:
         db.add(case)
         await db.flush()   # write to DB within this transaction
+
+        # Record initial Chain of Custody events
+        await record_chain_event(
+            db=db,
+            case_id=case_id,
+            event_type="EVIDENCE_INGESTED",
+            evidence_hash=evidence["file_sha256"],
+            metadata={"original_filename": filename, "file_size_bytes": len(raw_bytes)},
+        )
+        await record_chain_event(
+            db=db,
+            case_id=case_id,
+            event_type="EVIDENCE_HASHED",
+            evidence_hash=evidence["file_sha256"],
+            metadata={"parsed_evidence_sha256": parsed_evidence_hash, "algorithm": "SHA-256"},
+        )
+        await record_chain_event(
+            db=db,
+            case_id=case_id,
+            event_type="EVIDENCE_ANALYZED",
+            evidence_hash=analysis_hash,
+            metadata={"risk_score": risk_data.get("risk_score"), "risk_label": risk_data.get("severity")},
+        )
     except Exception as exc:
         logger.error(f"DB insert error: {exc}")
         raise HTTPException(

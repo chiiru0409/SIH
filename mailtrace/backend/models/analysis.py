@@ -37,7 +37,7 @@ class AnalysisCase(Base):
       Phase 6  → risk_score, risk_reasons (JSON)
       Phase 7  → campaign_id, correlation_data (JSON)
       Phase 8  → report_path
-      Phase 9  → evidence_hash
+      Phase 9  → evidence_hash, parsed_evidence_hash, analysis_hash, blockchain_tx_id, blockchain_anchor_data
     """
 
     __tablename__ = "analysis_cases"
@@ -104,10 +104,13 @@ class AnalysisCase(Base):
     report_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
 
     # ---------------------------------------------------------------- #
-    #  Phase 9 — Evidence integrity                                      #
+    #  Phase 9 — Evidence integrity & Blockchain commitments             #
     # ---------------------------------------------------------------- #
     evidence_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    # Optional future field: blockchain_anchor_tx (String)
+    parsed_evidence_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    analysis_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    blockchain_tx_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    blockchain_anchor_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # ---------------------------------------------------------------- #
     #  Status                                                            #

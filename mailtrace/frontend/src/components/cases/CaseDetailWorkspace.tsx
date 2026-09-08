@@ -4,7 +4,8 @@ import {
   Copy, 
   Check, 
   FileCode, 
-  ShieldAlert, 
+  ShieldAlert,
+  ShieldCheck,
   Layers, 
   Search, 
   Compass, 
@@ -31,6 +32,7 @@ import { ForensicEvidencePanel } from '../forensic/ForensicEvidencePanel';
 import { InfrastructurePanel } from '../infrastructure/InfrastructurePanel';
 import { GeoMap } from '../infrastructure/GeoMap';
 import { InvestigationGraphView } from '../graph/InvestigationGraphView';
+import { EvidenceIntegrityPanel } from '../evidence/EvidenceIntegrityPanel';
 import type { CaseDetail, CaseCorrelationDetailResponse } from '../../types/api';
 
 export interface CaseDetailWorkspaceProps {
@@ -48,7 +50,7 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
   onSelectRelatedCase,
   className,
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'forensics' | 'threat' | 'infrastructure' | 'graph' | 'raw_email'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'forensics' | 'threat' | 'infrastructure' | 'graph' | 'integrity' | 'raw_email'>('overview');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isHeadersModalOpen, setIsHeadersModalOpen] = useState(false);
 
@@ -86,6 +88,7 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
     { id: 'threat', label: 'Threat Intelligence', icon: <Code className="w-3.5 h-3.5" /> },
     { id: 'infrastructure', label: 'Infrastructure & Geo', icon: <Compass className="w-3.5 h-3.5" /> },
     { id: 'graph', label: 'Investigation Graph', count: correlationData?.graph?.nodes?.length, icon: <Network className="w-3.5 h-3.5" /> },
+    { id: 'integrity', label: 'Evidence Integrity', icon: <ShieldCheck className="w-3.5 h-3.5" /> },
     { id: 'raw_email', label: 'Email Content', icon: <Mail className="w-3.5 h-3.5" /> },
   ];
 
@@ -315,7 +318,15 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
         </div>
       )}
 
-      {/* TAB 6: EMAIL CONTENT (SAFE SANITIZED PREVIEW) */}
+      {/* TAB 6: EVIDENCE INTEGRITY & BLOCKCHAIN ANCHORING */}
+      {activeTab === 'integrity' && (
+        <EvidenceIntegrityPanel
+          caseId={caseData.case_id}
+          initialEvidenceHash={caseData.evidence_hash}
+        />
+      )}
+
+      {/* TAB 7: EMAIL CONTENT (SAFE SANITIZED PREVIEW) */}
       {activeTab === 'raw_email' && (
         <div className="space-y-6">
           <Card

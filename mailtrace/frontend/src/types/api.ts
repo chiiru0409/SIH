@@ -402,3 +402,84 @@ export interface HealthResponse {
   environment: string;
   database: string;
 }
+
+// ------------------------------------------------------------------ //
+//  10. Step 9: Evidence Integrity & Blockchain Anchoring             //
+// ------------------------------------------------------------------ //
+
+export interface ChainOfCustodyEvent {
+  id: string | number;
+  event_type: 'EVIDENCE_INGESTED' | 'EVIDENCE_HASHED' | 'EVIDENCE_ANALYZED' | 'EVIDENCE_VERIFIED' | 'BLOCKCHAIN_ANCHORED' | string;
+  event_hash: string;
+  evidence_hash: string;
+  previous_event_hash: string | null;
+  timestamp: string;
+  metadata: Record<string, any>;
+}
+
+export interface ChainOfCustodyResponse {
+  case_id: string;
+  evidence_hash: string;
+  total_events: number;
+  chain_valid: boolean;
+  events: ChainOfCustodyEvent[];
+}
+
+export interface BlockchainAnchorInfo {
+  enabled: boolean;
+  provider: string;
+  network: string;
+  transaction_id: string | null;
+  anchor_data: Record<string, any> | null;
+  status: 'not_anchored' | 'anchored' | 'disabled' | 'not_configured' | string;
+}
+
+export interface EvidenceManifestResponse {
+  case_id: string;
+  evidence_type: string;
+  original_filename: string;
+  file_size_bytes: number;
+  file_sha256: string;
+  parsed_evidence_sha256: string;
+  analysis_sha256: string;
+  hash_algorithm: string;
+  integrity_status: string;
+  created_at: string;
+  updated_at: string;
+  chain_of_custody: {
+    total_events: number;
+    events: ChainOfCustodyEvent[];
+  };
+  blockchain_anchoring: BlockchainAnchorInfo;
+  legal_attribution_notice: string;
+}
+
+export interface EvidenceVerifyResponse {
+  valid: boolean;
+  case_id: string;
+  file_sha256: string;
+  stored_file_sha256: string;
+  parsed_evidence_sha256: string;
+  stored_parsed_sha256: string;
+  analysis_sha256: string;
+  stored_analysis_sha256: string;
+  verification_method: string;
+  chain_of_custody_valid: boolean;
+  chain_of_custody_events_count: number;
+  blockchain_verified: boolean | null;
+  blockchain_details: Record<string, any>;
+  details: string[];
+  verified_at: string;
+}
+
+export interface BlockchainAnchorResponse {
+  status: string;
+  anchored: boolean;
+  case_id: string;
+  evidence_hash: string;
+  transaction_id: string | null;
+  block_number: number | null;
+  block_timestamp: string | null;
+  network: string | null;
+  message: string;
+}

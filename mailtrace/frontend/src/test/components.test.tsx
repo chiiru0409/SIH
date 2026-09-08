@@ -6,6 +6,7 @@ import { ThreatClassificationPanel } from '../components/threat/ThreatClassifica
 import { AuthenticationMatrix } from '../components/forensic/AuthenticationMatrix';
 import { ForensicEvidencePanel } from '../components/forensic/ForensicEvidencePanel';
 import { RiskFactorsList } from '../components/risk/RiskFactorsList';
+import { EvidenceIntegrityPanel } from '../components/evidence/EvidenceIntegrityPanel';
 
 describe('MailTrace Dashboard Core Component Suite', () => {
   it('renders RiskScoreHero with correct score and severity', () => {
@@ -142,5 +143,15 @@ describe('MailTrace Dashboard Core Component Suite', () => {
     expect(screen.getByText('+20 pts')).toBeInTheDocument();
     expect(screen.getByText('DMARC Policy Failure')).toBeInTheDocument();
     expect(screen.getByText('+15 pts')).toBeInTheDocument();
+  });
+
+  it('renders EvidenceIntegrityPanel with loading state and initial props', () => {
+    const { container } = render(
+      <EvidenceIntegrityPanel
+        caseId="test-case-uuid-001"
+        initialEvidenceHash="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      />
+    );
+    expect(container).toBeInTheDocument();
   });
 });

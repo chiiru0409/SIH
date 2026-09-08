@@ -64,6 +64,16 @@ class Settings(BaseSettings):
     GEOIP_DB_PATH: str = ""
 
     # ------------------------------------------------------------------ #
+    #  Blockchain Anchoring (Step 9)                                     #
+    # ------------------------------------------------------------------ #
+    BLOCKCHAIN_ENABLED: bool = False
+    BLOCKCHAIN_PROVIDER: str = "mock"       # mock | null | ethereum
+    BLOCKCHAIN_RPC_URL: str = ""
+    BLOCKCHAIN_NETWORK: str = "local-simulated"
+    BLOCKCHAIN_PRIVATE_KEY: str = ""        # NEVER expose or log
+    BLOCKCHAIN_CONTRACT_ADDRESS: str = ""
+
+    # ------------------------------------------------------------------ #
     #  Risk engine weights (Phase 6) — configurable without code changes  #
     # ------------------------------------------------------------------ #
     RISK_WEIGHT_SPF_FAIL: int = 15

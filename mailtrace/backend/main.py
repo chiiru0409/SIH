@@ -19,7 +19,7 @@ from fastapi.responses import RedirectResponse
 
 from backend.config import settings
 from backend.database import init_db
-from backend.routes import health, analyze, correlation
+from backend.routes import health, analyze, correlation, evidence
 
 
 # ------------------------------------------------------------------ #
@@ -107,6 +107,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(analyze.router)
 app.include_router(correlation.router)
+app.include_router(evidence.router)
 
 
 # ------------------------------------------------------------------ #
