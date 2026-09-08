@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 # ------------------------------------------------------------------ #
 
 class UploadResponse(BaseModel):
-    """Returned immediately after a successful .eml upload + parse + forensic analysis."""
+    """Returned immediately after a successful .eml upload + parse + forensic + AI threat analysis."""
     case_id: str
     status: str
     filename: str
@@ -28,7 +28,44 @@ class UploadResponse(BaseModel):
     indicators: dict[str, Any]
     evidence: dict[str, Any]
     forensic_analysis: dict[str, Any] | None = None
+    threat_analysis: dict[str, Any] | None = None
     parse_errors: list[str] = Field(default_factory=list)
+
+
+# ------------------------------------------------------------------ #
+#  Phase 4 — Threat Analysis Models                                  #
+# ------------------------------------------------------------------ #
+
+class ThreatIndicator(BaseModel):
+    indicator: str
+    category: str
+    weight: float
+    severity: str
+    description: str
+    evidence: str | None = None
+
+
+class ThreatSignals(BaseModel):
+    urgency: str
+    credential_request: str
+    financial_request: str
+    impersonation: str
+    suspicious_link: str
+    attachment_threat: str
+    fear_manipulation: str
+    authority_pressure: str
+
+
+class ThreatAnalysisResult(BaseModel):
+    primary_threat: str
+    secondary_threats: list[str] = Field(default_factory=list)
+    confidence: float
+    signals: ThreatSignals | dict[str, str]
+    indicators: list[ThreatIndicator] = Field(default_factory=list)
+    explanation: str
+    evidence_summary: dict[str, list[str]] = Field(default_factory=dict)
+    analysis_method: str = "local"
+    model_info: str = "rule-nlp-engine-v1"
 
 
 # ------------------------------------------------------------------ #
