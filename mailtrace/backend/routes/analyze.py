@@ -25,6 +25,7 @@ from backend.services.email_parser import parse_email
 from backend.services.evidence import build_evidence_record, sha256_bytes
 from backend.services.forensics import run_forensic_analysis
 from backend.services.intelligence import enrich_infrastructure
+from backend.services.risk_engine import calculate_risk
 from backend.services.threat_analyzer import analyze_threat
 
 logger = logging.getLogger("mailtrace.routes.analyze")
@@ -52,6 +53,7 @@ def _build_upload_response(
     forensic: dict | None = None,
     threat: dict | None = None,
     intel: dict | None = None,
+    risk: dict | None = None,
 ) -> dict:
     """Build the structured JSON response for POST /upload."""
     headers = parsed.get("headers", {})
@@ -123,6 +125,11 @@ def _build_upload_response(
             "urls": (case.url_intel or {}).get("urls", []),
             "summary": (case.ip_intel or {}).get("summary", {}),
         },
+        "risk_assessment": risk or (case.risk_reasons if isinstance(case.risk_reasons, dict) else {
+            "risk_score": case.risk_score,
+            "severity": case.risk_label,
+            "risk_factors": [],
+        }),
         "parse_errors": parsed.get("parse_errors", []),
     }
 
@@ -279,6 +286,23 @@ async def upload_eml(
             "limitations": [],
         }
 
+    # ---- Step 6: Run unified risk assessment ----
+    try:
+        risk_data = calculate_risk(forensic_data, threat_data, intel_data, parsed)
+    except Exception as exc:
+        logger.error(f"Risk assessment error: {exc}")
+        risk_data = {
+            "risk_score": 50.0,
+            "severity": "MEDIUM",
+            "risk_factors": [],
+            "category_scores": {},
+            "top_factors": [],
+            "explanation": f"Risk assessment encountered an unexpected error: {exc}",
+            "confidence": 0.50,
+            "method": "deterministic_weighted",
+            "limitations": [],
+        }
+
     # ---- Persist to database ----
     case = AnalysisCase(
         id=case_id,
@@ -291,6 +315,9 @@ async def upload_eml(
         ip_intel={"ips": intel_data.get("ips", []), "summary": intel_data.get("summary", {})},
         domain_intel={"domains": intel_data.get("domains", []), "summary": intel_data.get("summary", {})},
         url_intel={"urls": intel_data.get("urls", []), "summary": intel_data.get("summary", {})},
+        risk_score=risk_data.get("risk_score"),
+        risk_label=risk_data.get("severity"),
+        risk_reasons=risk_data,
         status=case_status,
         evidence_hash=evidence["file_sha256"],
     )
@@ -305,9 +332,9 @@ async def upload_eml(
             detail={"status": "error", "code": "DB_ERROR", "message": "Could not store analysis case."},
         )
 
-    logger.info(f"Case {case_id} stored — file={filename} status={case_status} sha256={evidence['file_sha256'][:16]}…")
+    logger.info(f"Case {case_id} stored — file={filename} status={case_status} risk={risk_data.get('risk_score')} ({risk_data.get('severity')}) sha256={evidence['file_sha256'][:16]}…")
 
-    return _build_upload_response(case, parsed, evidence, forensic_data, threat_data, intel_data)
+    return _build_upload_response(case, parsed, evidence, forensic_data, threat_data, intel_data, risk_data)
 
 
 # ------------------------------------------------------------------ #

@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 # ------------------------------------------------------------------ #
 
 class UploadResponse(BaseModel):
-    """Returned immediately after a successful .eml upload + parse + forensic + AI threat + intel analysis."""
+    """Returned immediately after a successful .eml upload + parse + forensic + AI threat + intel + risk analysis."""
     case_id: str
     status: str
     filename: str
@@ -30,6 +30,7 @@ class UploadResponse(BaseModel):
     forensic_analysis: dict[str, Any] | None = None
     threat_analysis: dict[str, Any] | None = None
     infrastructure_intelligence: dict[str, Any] | None = None
+    risk_assessment: dict[str, Any] | None = None
     parse_errors: list[str] = Field(default_factory=list)
 
 
@@ -134,6 +135,32 @@ class InfrastructureIntelligenceResult(BaseModel):
     urls: list[URLStructureRecord | dict[str, Any]] = Field(default_factory=list)
     correlation_entities: dict[str, Any] = Field(default_factory=dict)
     limitations: list[str] = Field(default_factory=list)
+
+
+# ------------------------------------------------------------------ #
+#  Phase 6 — Risk Assessment Models                                  #
+# ------------------------------------------------------------------ #
+
+class RiskFactor(BaseModel):
+    factor: str
+    category: str
+    points: float
+    severity: str
+    evidence: str
+    source: str
+
+
+class RiskAssessmentResult(BaseModel):
+    risk_score: float
+    severity: str
+    risk_factors: list[RiskFactor | dict[str, Any]] = Field(default_factory=list)
+    category_scores: dict[str, float] = Field(default_factory=dict)
+    top_factors: list[RiskFactor | dict[str, Any]] = Field(default_factory=list)
+    explanation: str
+    confidence: float
+    method: str = "deterministic_weighted"
+    limitations: list[str] = Field(default_factory=list)
+
 
 
 # ------------------------------------------------------------------ #
