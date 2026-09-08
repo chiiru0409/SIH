@@ -156,14 +156,45 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
   const domainIntel = caseData?.domain_intel || (caseData as any)?.infrastructure || (caseData as any)?.email_analysis?.infrastructure || { domains: [] };
   const urlIntel = caseData?.url_intel || (caseData as any)?.infrastructure || (caseData as any)?.email_analysis?.infrastructure || { urls: [] };
 
+  const [emailViewMode, setEmailViewMode] = useState<'html' | 'plain'>('html');
+
   const rawHeaders = parsed?.raw_headers && typeof parsed.raw_headers === 'object' 
     ? parsed.raw_headers 
     : typeof parsed?.raw_headers === 'string' 
     ? { 'Raw Headers': parsed.raw_headers }
     : {};
 
-  const emailHtml = (parsed?.html_body || parsed?.body_html) ? sanitizeHtml(parsed.html_body || parsed.body_html) : null;
-  const emailText = parsed?.body || parsed?.body_plain || '';
+  let rawHtml: string | null = null;
+  let rawPlain: string | null = null;
+
+  if (typeof parsed?.html_body === 'string' && parsed.html_body.trim()) {
+    rawHtml = parsed.html_body;
+  } else if (typeof parsed?.body_html === 'string' && parsed.body_html.trim()) {
+    rawHtml = parsed.body_html;
+  } else if (parsed?.body && typeof parsed.body === 'object') {
+    if (typeof parsed.body.html === 'string' && parsed.body.html.trim()) {
+      rawHtml = parsed.body.html;
+    }
+  }
+
+  if (typeof parsed?.body === 'string' && parsed.body.trim()) {
+    rawPlain = parsed.body;
+  } else if (typeof parsed?.body_plain === 'string' && parsed.body_plain.trim()) {
+    rawPlain = parsed.body_plain;
+  } else if (typeof parsed?.plain_body === 'string' && parsed.plain_body.trim()) {
+    rawPlain = parsed.plain_body;
+  } else if (parsed?.body && typeof parsed.body === 'object') {
+    if (typeof parsed.body.plain === 'string' && parsed.body.plain.trim()) {
+      rawPlain = parsed.body.plain;
+    } else if (typeof parsed.body.normalized === 'string' && parsed.body.normalized.trim()) {
+      rawPlain = parsed.body.normalized;
+    }
+  }
+
+  const emailHtml = rawHtml ? sanitizeHtml(rawHtml) : null;
+  const emailText = typeof rawPlain === 'string' 
+    ? rawPlain 
+    : (rawPlain ? JSON.stringify(rawPlain, null, 2) : (typeof parsed?.body === 'string' ? parsed.body : ''));
 
   const findingsCount = Array.isArray(forensicAnalysis?.findings) 
     ? forensicAnalysis.findings.length 
@@ -411,20 +442,65 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
       <div className={activeTab === 'raw_email' ? 'block space-y-6' : 'hidden'} key="tab-raw_email">
         <ErrorBoundary fallbackTitle="EMAIL PREVIEW RENDER ERROR">
           <Card
-            title="EXTRACTED EMAIL BODY"
-            subtitle="Sandboxed defense-in-depth HTML rendering (scripts stripped, active clicks defanged)"
+            title="EXTRACTED EMAIL BODY & MIME CONTENT"
+            subtitle="Sandboxed defense-in-depth HTML rendering (scripts stripped, active clicks defanged) & plain text audit"
             icon={<Mail className="w-4 h-4 text-cyber-cyan" />}
+            headerActions={
+              <div className="flex items-center space-x-2">
+                {emailHtml && (
+                  <div className="flex items-center space-x-1 p-0.5 rounded-lg bg-cyber-bg border border-cyber-border font-mono text-[11px]">
+                    <button
+                      onClick={() => setEmailViewMode('html')}
+                      className={`px-2.5 py-1 rounded transition ${
+                        emailViewMode === 'html'
+                          ? 'bg-cyber-card text-cyber-cyan font-bold border border-cyber-cyan/40 shadow-[0_0_8px_rgba(0,240,255,0.2)]'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      RENDERED HTML
+                    </button>
+                    <button
+                      onClick={() => setEmailViewMode('plain')}
+                      className={`px-2.5 py-1 rounded transition ${
+                        emailViewMode === 'plain'
+                          ? 'bg-cyber-card text-cyber-cyan font-bold border border-cyber-cyan/40 shadow-[0_0_8px_rgba(0,240,255,0.2)]'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      PLAIN TEXT
+                    </button>
+                  </div>
+                )}
+                <button
+                  onClick={() => copyToClipboard(emailText || (rawHtml || ''), 'body')}
+                  className="px-2.5 py-1 rounded bg-cyber-bg border border-cyber-border hover:border-cyber-cyan/50 text-slate-300 font-mono text-xs flex items-center space-x-1.5 transition"
+                  title="Copy email body to clipboard"
+                >
+                  {copiedField === 'body' ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-400">COPIED</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 text-slate-400" />
+                      <span>COPY BODY</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            }
           >
             <div className="space-y-4">
-              {emailHtml ? (
-                <div className="p-4 rounded-lg bg-slate-900 border border-cyber-border max-h-[600px] overflow-y-auto">
+              {emailHtml && emailViewMode === 'html' ? (
+                <div className="p-5 rounded-lg bg-slate-900/90 border border-cyber-border max-h-[600px] overflow-y-auto">
                   <div
                     dangerouslySetInnerHTML={{ __html: emailHtml }}
-                    className="prose prose-invert max-w-none text-slate-200 text-xs"
+                    className="prose prose-invert max-w-none text-slate-200 text-xs leading-relaxed"
                   />
                 </div>
               ) : (
-                <pre className="p-4 rounded-lg bg-cyber-surface border border-cyber-border font-mono text-xs text-slate-300 whitespace-pre-wrap max-h-[600px] overflow-y-auto">
+                <pre className="p-5 rounded-lg bg-slate-950 border border-cyber-border font-mono text-xs text-slate-200 whitespace-pre-wrap max-h-[600px] overflow-y-auto leading-relaxed shadow-inner">
                   {emailText || '(No plain-text body content extracted)'}
                 </pre>
               )}

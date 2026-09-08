@@ -263,4 +263,53 @@ describe('CaseDetailWorkspace & Component Hardening Suite', () => {
     expect(container).toBeInTheDocument();
     expect(screen.getByText('casual_test.eml')).toBeInTheDocument();
   });
+
+  it('renders CaseDetailWorkspace and Email Content tab safely when parsed_email.body is an object with {plain, html, normalized}', () => {
+    const caseWithObjectBody: CaseDetail = {
+      case_id: '33333333-4444-5555-6666-777777777777',
+      original_filename: 'casual_test.eml',
+      status: 'completed',
+      risk_score: 4,
+      risk_label: 'LOW',
+      created_at: '2026-09-08T18:00:00Z',
+      updated_at: '2026-09-08T18:00:00Z',
+      parsed_email: {
+        headers: {
+          subject: 'Quick update on today\'s meeting',
+          from: 'colleague@example.com',
+          to: ['me@example.com'],
+        },
+        body: {
+          plain: 'Hey, quick update regarding today\'s meeting notes.',
+          html: '<p>Hey, quick update regarding today\'s meeting notes.</p>',
+          normalized: 'Hey, quick update regarding today\'s meeting notes.',
+        } as any,
+      },
+      forensic_analysis: null,
+      ai_analysis: null,
+      ip_intel: null,
+      domain_intel: null,
+      url_intel: null,
+      risk_reasons: null,
+      campaign_id: null,
+      correlation_data: null,
+      report_path: null,
+      evidence_hash: 'b19876b3241e1e00d4506606ff4a8dc584217327805c07818346769f3e5ef082',
+      error_detail: null,
+    };
+
+    render(
+      <CaseDetailWorkspace
+        caseData={caseWithObjectBody}
+        onBack={() => {}}
+      />
+    );
+
+    // Switch to Email Content tab
+    const emailTab = screen.getByText('Email Content');
+    fireEvent.click(emailTab);
+
+    // Check that either HTML content or plain text body is visible and no crash occurred
+    expect(screen.getByText(/quick update regarding today's meeting notes/i)).toBeInTheDocument();
+  });
 });
