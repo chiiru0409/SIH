@@ -5,6 +5,8 @@ GET /api/health        — liveness: is the process alive?
 GET /api/health/ready  — readiness: can we reach the database?
 """
 
+from __future__ import annotations
+
 import logging
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession

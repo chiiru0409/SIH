@@ -12,6 +12,8 @@ Hash Chaining:
   event_n_hash = SHA256(event_type + case_id + evidence_hash + timestamp + metadata_json + previous_event_hash)
 """
 
+from __future__ import annotations
+
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import String, DateTime, Text, Index, JSON

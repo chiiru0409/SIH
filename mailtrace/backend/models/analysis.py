@@ -7,6 +7,8 @@ are added, while still being queryable via SQLite JSON functions or
 PostgreSQL JSONB.
 """
 
+from __future__ import annotations
+
 import uuid
 from datetime import datetime, timezone
 
