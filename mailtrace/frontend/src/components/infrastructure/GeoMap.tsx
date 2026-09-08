@@ -191,7 +191,7 @@ export const GeoMap: React.FC<GeoMapProps> = ({ ips, className }) => {
                     fontWeight="bold"
                     className="pointer-events-none drop-shadow-md"
                   >
-                    {node.geo.city || node.geo.country_code || node.ip}
+                    {String(node.geo?.city || node.geo?.country_code || node.ip || '')}
                   </text>
                 </g>
               );
@@ -216,16 +216,16 @@ export const GeoMap: React.FC<GeoMapProps> = ({ ips, className }) => {
             <div className="absolute bottom-4 left-4 p-3 rounded-lg bg-slate-900/90 border border-cyber-cyan shadow-xl backdrop-blur-md text-xs font-mono space-y-1 animate-fadeIn z-20">
               <div className="flex items-center space-x-2 text-cyan-400 font-bold">
                 <MapPin className="w-3.5 h-3.5" />
-                <span>{hoveredIp.ip}</span>
+                <span>{String(hoveredIp.ip || '')}</span>
               </div>
               <div className="text-slate-300 text-[11px]">
                 {hoveredIp.geo?.city ? `${hoveredIp.geo.city}, ` : ''}
                 {hoveredIp.geo?.region ? `${hoveredIp.geo.region}, ` : ''}
-                {hoveredIp.geo?.country || 'UNAVAILABLE'} ({hoveredIp.geo?.country_code || '--'})
+                {String(hoveredIp.geo?.country || 'UNAVAILABLE')} ({String(hoveredIp.geo?.country_code || '--')})
               </div>
               {hoveredIp.asn?.organization && (
                 <div className="text-slate-400 text-[10px]">
-                  ASN: {hoveredIp.asn.asn} ({hoveredIp.asn.organization})
+                  ASN: {String(hoveredIp.asn.asn || '')} ({String(hoveredIp.asn.organization || '')})
                 </div>
               )}
               {typeof hoveredIp.geo?.latitude === 'number' && typeof hoveredIp.geo?.longitude === 'number' && (

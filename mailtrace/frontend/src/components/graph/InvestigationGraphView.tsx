@@ -99,7 +99,7 @@ export const CYTOSCAPE_STYLESHEET = [
 ];
 
 // Node Type Visual & SOC Taxonomy Mapping
-const NODE_CONFIG: Record<NodeType, { color: string; glow: string; label: string; bg: string }> = {
+const NODE_CONFIG: Record<string, { color: string; glow: string; label: string; bg: string }> = {
   CASE: { color: '#818cf8', glow: 'rgba(129, 140, 248, 0.7)', label: 'Case', bg: 'bg-indigo-950/70 border-indigo-500/40 text-indigo-300' },
   EMAIL: { color: '#22d3ee', glow: 'rgba(34, 211, 238, 0.7)', label: 'Email', bg: 'bg-cyan-950/70 border-cyan-500/40 text-cyan-300' },
   SENDER: { color: '#fbbf24', glow: 'rgba(251, 191, 36, 0.7)', label: 'Sender', bg: 'bg-amber-950/70 border-amber-500/40 text-amber-300' },
@@ -108,6 +108,19 @@ const NODE_CONFIG: Record<NodeType, { color: string; glow: string; label: string
   IP: { color: '#00f0ff', glow: 'rgba(0, 240, 255, 0.8)', label: 'IP Address', bg: 'bg-cyan-950/70 border-cyan-500/40 text-cyan-300' },
   ASN: { color: '#34d399', glow: 'rgba(52, 211, 153, 0.7)', label: 'ASN / BGP Routing', bg: 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300' },
   CAMPAIGN: { color: '#ef4444', glow: 'rgba(239, 68, 68, 0.8)', label: 'Cluster Campaign', bg: 'bg-red-950/70 border-red-500/40 text-red-300' },
+};
+
+const DEFAULT_NODE_CONFIG = {
+  color: '#38bdf8',
+  glow: 'rgba(56, 189, 248, 0.7)',
+  label: 'Entity',
+  bg: 'bg-sky-950/70 border-sky-500/40 text-sky-300'
+};
+
+const getNodeConfig = (type?: string) => {
+  if (!type) return DEFAULT_NODE_CONFIG;
+  const upper = String(type).toUpperCase();
+  return NODE_CONFIG[upper] || DEFAULT_NODE_CONFIG;
 };
 
 export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
@@ -415,10 +428,13 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
                 const pos = nodePositions[node.id];
                 if (!pos) return null;
 
-                const config = NODE_CONFIG[node.type] || NODE_CONFIG.CASE;
+                const config = getNodeConfig(node.type);
                 const isSelected = selectedNode?.id === node.id;
-                const isCaseMatch = selectedCaseId && node.id.includes(selectedCaseId);
-                const isHubNode = node.type === 'CASE' || node.type === 'CAMPAIGN';
+                const nodeIdStr = String(node.id || '');
+                const isCaseMatch = selectedCaseId && nodeIdStr.includes(selectedCaseId);
+                const nodeTypeUpper = String(node.type || '').toUpperCase();
+                const isHubNode = nodeTypeUpper === 'CASE' || nodeTypeUpper === 'CAMPAIGN';
+                const labelText = String(node.label || node.id || '');
 
                 return (
                   <g
@@ -427,8 +443,8 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedNode(node);
-                      if (node.type === 'CASE' && onSelectCase) {
-                        onSelectCase(node.id.replace('case:', ''));
+                      if (nodeTypeUpper === 'CASE' && onSelectCase) {
+                        onSelectCase(nodeIdStr.replace('case:', ''));
                       }
                     }}
                     className="cursor-pointer group"
@@ -474,7 +490,7 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
                       textAnchor="middle"
                       className="pointer-events-none drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]"
                     >
-                      {node.label.length > 22 ? `${node.label.slice(0, 20)}…` : node.label}
+                      {labelText.length > 22 ? `${labelText.slice(0, 20)}…` : labelText}
                     </text>
                   </g>
                 );
@@ -544,10 +560,11 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
               </button>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-              {(Object.keys(NODE_CONFIG) as NodeType[]).map((type) => {
-                const count = rawNodes.filter(n => n.type === type).length;
+              {(Object.keys(NODE_CONFIG) as string[]).map((type) => {
+                const count = rawNodes.filter(n => n && String(n.type).toUpperCase() === type).length;
                 if (count === 0) return null;
-                const isSelected = activeFilter === type;
+                const isSelected = activeFilter.toUpperCase() === type;
+                const cfg = getNodeConfig(type);
                 return (
                   <button
                     key={type}
@@ -560,9 +577,9 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
                   >
                     <span
                       className="h-2 w-2 rounded-full shrink-0"
-                      style={{ backgroundColor: NODE_CONFIG[type].color }}
+                      style={{ backgroundColor: cfg.color }}
                     />
-                    <span className="truncate">{NODE_CONFIG[type].label}</span>
+                    <span className="truncate">{cfg.label}</span>
                     <span className="text-slate-500 text-[9px]">({count})</span>
                   </button>
                 );
@@ -586,10 +603,10 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
                 <div className="flex items-center space-x-2">
                   <span
                     className="h-3 w-3 rounded-full"
-                    style={{ backgroundColor: NODE_CONFIG[selectedNode.type]?.color }}
+                    style={{ backgroundColor: getNodeConfig(selectedNode.type).color }}
                   />
                   <span className="font-bold text-slate-100 uppercase tracking-wider">
-                    {NODE_CONFIG[selectedNode.type]?.label || selectedNode.type}
+                    {getNodeConfig(selectedNode.type).label}
                   </span>
                 </div>
                 <button
@@ -603,13 +620,13 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
               <div className="space-y-1.5">
                 <span className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold block">Entity Value</span>
                 <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-bold break-all text-[11px]">
-                  <span>{selectedNode.label}</span>
+                  <span>{String(selectedNode.label || selectedNode.id || '')}</span>
                   <button
-                    onClick={() => copyToClipboard(selectedNode.label)}
+                    onClick={() => copyToClipboard(String(selectedNode.label || selectedNode.id || ''))}
                     className="text-cyan-400 hover:text-cyan-300 ml-2 shrink-0"
                     title="Copy Value"
                   >
-                    {copiedValue === selectedNode.label ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copiedValue === String(selectedNode.label || selectedNode.id || '') ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                   </button>
                 </div>
               </div>
@@ -617,7 +634,7 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
               <div className="space-y-1">
                 <span className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold block">Identifier</span>
                 <span className="text-slate-400 text-[10px] break-all bg-slate-950/60 p-1.5 rounded block border border-slate-800/60">
-                  {selectedNode.id}
+                  {String(selectedNode.id || '')}
                 </span>
               </div>
 
@@ -629,7 +646,7 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
                       <div key={k} className="flex justify-between items-center py-0.5 text-slate-400 border-b border-slate-800/40">
                         <span className="text-slate-500">{k}:</span>
                         <span className="text-slate-200 font-bold truncate max-w-[140px]">
-                          {String(v)}
+                          {typeof v === 'object' ? JSON.stringify(v) : String(v ?? '')}
                         </span>
                       </div>
                     ))}
@@ -637,10 +654,10 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
                 </div>
               )}
 
-              {selectedNode.type === 'CASE' && onSelectCase && (
+              {String(selectedNode.type || '').toUpperCase() === 'CASE' && onSelectCase && (
                 <div className="pt-2">
                   <button
-                    onClick={() => onSelectCase(selectedNode.id.replace('case:', ''))}
+                    onClick={() => onSelectCase(String(selectedNode.id || '').replace('case:', ''))}
                     className="w-full flex items-center justify-center space-x-1.5 px-3 py-2 rounded-lg bg-cyan-500/20 border border-cyan-500/50 text-cyan-300 font-bold hover:bg-cyan-500/30 transition text-xs"
                   >
                     <span>Load Case Detail Workspace</span>

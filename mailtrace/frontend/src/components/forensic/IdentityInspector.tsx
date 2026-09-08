@@ -31,10 +31,21 @@ export const IdentityInspector: React.FC<IdentityInspectorProps> = ({
     );
   }
 
-  const fromEmail = typeof email.from === 'string' ? email.from : 'UNAVAILABLE';
-  const replyTo = typeof email.reply_to === 'string' ? email.reply_to : null;
-  const returnPath = typeof email.return_path === 'string' ? email.return_path : null;
-  const messageId = typeof email.message_id === 'string' ? email.message_id : 'UNAVAILABLE';
+  const extractStr = (val: any, fallback: string = 'UNAVAILABLE'): string => {
+    if (typeof val === 'string' && val.trim()) return val;
+    if (val && typeof val === 'object') {
+      if (typeof val.email === 'string') return val.email;
+      if (typeof val.address === 'string') return val.address;
+      if (typeof val.name === 'string') return val.name;
+    }
+    return fallback;
+  };
+
+  const fromEmail = extractStr(email.from);
+  const fromDisplay = typeof email.from_display === 'string' ? email.from_display : null;
+  const replyTo = typeof email.reply_to === 'string' && email.reply_to ? email.reply_to : (extractStr(email.reply_to, '') || null);
+  const returnPath = typeof email.return_path === 'string' && email.return_path ? email.return_path : (extractStr(email.return_path, '') || null);
+  const messageId = typeof email.message_id === 'string' && email.message_id ? email.message_id : (extractStr(email.message_id, 'UNAVAILABLE'));
 
   const hasReplyMismatch = flags?.reply_to_mismatch || 
     (Boolean(replyTo && fromEmail && fromEmail !== 'UNAVAILABLE' && replyTo.toLowerCase() !== fromEmail.toLowerCase()));
@@ -42,8 +53,8 @@ export const IdentityInspector: React.FC<IdentityInspectorProps> = ({
     (Boolean(returnPath && fromEmail && fromEmail !== 'UNAVAILABLE' && returnPath.toLowerCase() !== fromEmail.toLowerCase()));
 
   const toRecipients = Array.isArray(email.to) 
-    ? email.to.map(r => (typeof r === 'string' ? r : (r as any)?.email || String(r))).filter(Boolean)
-    : [];
+    ? email.to.map(r => (typeof r === 'string' ? r : extractStr(r, ''))).filter(Boolean)
+    : (extractStr(email.to, '') ? [extractStr(email.to, '')] : []);
 
   return (
     <Card

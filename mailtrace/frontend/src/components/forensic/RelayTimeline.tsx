@@ -40,8 +40,8 @@ export const RelayTimeline: React.FC<RelayTimelineProps> = ({ smtpTrace, classNa
             <span className="text-slate-600">|</span>
             <span className="text-slate-400">PUBLIC RELAY IPS:</span>
             <span className="font-bold text-slate-200">
-              {smtpTrace.public_ips && smtpTrace.public_ips.length > 0
-                ? smtpTrace.public_ips.join(', ')
+              {Array.isArray(smtpTrace.public_ips) && smtpTrace.public_ips.length > 0
+                ? smtpTrace.public_ips.map(ip => typeof ip === 'string' ? ip : (ip as any)?.ip || JSON.stringify(ip)).join(', ')
                 : 'None detected'}
             </span>
           </div>
@@ -54,7 +54,9 @@ export const RelayTimeline: React.FC<RelayTimelineProps> = ({ smtpTrace, classNa
         {/* Timeline Hops List */}
         <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-cyber-border">
           {hops.map((hop, index) => {
-            const isEarliest = earliestNode && (earliestNode.ip === hop.ip || index === hops.length - 1);
+            const earliestIp = earliestNode && typeof earliestNode === 'object' ? (earliestNode as any).ip : (typeof earliestNode === 'string' ? earliestNode : null);
+            const hopIp = typeof hop.ip === 'string' ? hop.ip : (hop.ip ? String(hop.ip) : null);
+            const isEarliest = earliestIp && hopIp ? earliestIp === hopIp : index === hops.length - 1;
             const hopNumber = index + 1;
 
             return (
@@ -106,7 +108,7 @@ export const RelayTimeline: React.FC<RelayTimelineProps> = ({ smtpTrace, classNa
                     {hop.timestamp && (
                       <div className="flex items-center space-x-1.5 text-[11px] font-mono text-slate-400">
                         <Clock className="w-3 h-3 text-slate-500" />
-                        <span>{formatDate(hop.timestamp)}</span>
+                        <span>{formatDate(typeof hop.timestamp === 'string' ? hop.timestamp : String(hop.timestamp))}</span>
                       </div>
                     )}
                   </div>
@@ -115,16 +117,16 @@ export const RelayTimeline: React.FC<RelayTimelineProps> = ({ smtpTrace, classNa
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 text-xs font-mono">
                     <div>
                       <span className="text-slate-500 text-[10px] uppercase block">Transmitting Host (From):</span>
-                      <span className="text-slate-200 break-all">{hop.from || 'UNSPECIFIED'}</span>
+                      <span className="text-slate-200 break-all">{typeof hop.from === 'string' ? hop.from : (hop.from ? JSON.stringify(hop.from) : 'UNSPECIFIED')}</span>
                     </div>
                     <div>
                       <span className="text-slate-500 text-[10px] uppercase block">Receiving MTA (By):</span>
-                      <span className="text-slate-200 break-all">{hop.by || 'UNSPECIFIED'}</span>
+                      <span className="text-slate-200 break-all">{typeof hop.by === 'string' ? hop.by : (hop.by ? JSON.stringify(hop.by) : 'UNSPECIFIED')}</span>
                     </div>
                     <div>
                       <span className="text-slate-500 text-[10px] uppercase block">Originating IP:</span>
                       <span className="font-bold text-cyber-cyan break-all">
-                        {hop.ip || 'NOT EXTRACTABLE'}
+                        {hopIp || 'NOT EXTRACTABLE'}
                       </span>
                     </div>
                   </div>
@@ -133,7 +135,7 @@ export const RelayTimeline: React.FC<RelayTimelineProps> = ({ smtpTrace, classNa
                   {hop.raw && (
                     <div className="mt-2.5 pt-2 border-t border-cyber-border/30 text-[10px] font-mono text-slate-500 truncate">
                       <span className="text-slate-400">RAW: </span>
-                      {hop.raw}
+                      {typeof hop.raw === 'string' ? hop.raw : JSON.stringify(hop.raw)}
                     </div>
                   )}
 

@@ -154,13 +154,13 @@ export const ForensicEvidencePanel: React.FC<ForensicEvidencePanelProps> = ({
                   </div>
 
                   <p className="text-xs text-slate-300 mt-2 leading-relaxed font-sans">
-                    {finding.description || '(No description provided)'}
+                    {typeof finding.description === 'string' ? finding.description : (finding.description ? JSON.stringify(finding.description) : '(No description provided)')}
                   </p>
 
                   {finding.evidence && (
                     <div className="mt-2.5 p-2 rounded bg-cyber-bg/80 border border-cyber-border text-xs font-mono text-cyan-300 break-all">
                       <span className="text-slate-500 text-[10px] block uppercase">Extracted Evidence:</span>
-                      {finding.evidence}
+                      {typeof finding.evidence === 'string' ? finding.evidence : JSON.stringify(finding.evidence)}
                     </div>
                   )}
                 </div>

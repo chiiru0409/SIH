@@ -85,9 +85,9 @@ export const AuthenticationMatrix: React.FC<AuthenticationMatrixProps> = ({
       };
     }
     const dmarcObj = auth?.dmarc;
-    const dmarcStatusStr = (typeof dmarcObj === 'object' && dmarcObj ? (dmarcObj as any).status : dmarcObj) || '';
-    const dmarcPolicyStr = (typeof dmarcObj === 'object' && dmarcObj ? (dmarcObj as any).policy : null) || '';
-    const s = String(dmarcStatusStr).toLowerCase();
+    const dmarcStatusStr = typeof dmarcObj === 'object' && dmarcObj ? String((dmarcObj as any).status || '') : String(dmarcObj || '');
+    const dmarcPolicyStr = typeof dmarcObj === 'object' && dmarcObj ? String((dmarcObj as any).policy || '') : '';
+    const s = dmarcStatusStr.toLowerCase();
 
     if (s === 'fail') {
       return {
@@ -158,7 +158,7 @@ export const AuthenticationMatrix: React.FC<AuthenticationMatrixProps> = ({
             {alignment?.envelope_from_domain && (
               <div className="pt-2 border-t border-cyber-border/40 text-[10px] font-mono text-slate-400 truncate">
                 <span className="text-slate-500">Envelope: </span>
-                <span className="text-slate-200">{alignment.envelope_from_domain}</span>
+                <span className="text-slate-200">{String(alignment.envelope_from_domain)}</span>
               </div>
             )}
           </div>
@@ -192,7 +192,7 @@ export const AuthenticationMatrix: React.FC<AuthenticationMatrixProps> = ({
             {alignment?.dkim_domain && (
               <div className="pt-2 border-t border-cyber-border/40 text-[10px] font-mono text-slate-400 truncate">
                 <span className="text-slate-500">DKIM Domain: </span>
-                <span className="text-slate-200">{alignment.dkim_domain}</span>
+                <span className="text-slate-200">{String(alignment.dkim_domain)}</span>
               </div>
             )}
           </div>
@@ -219,7 +219,7 @@ export const AuthenticationMatrix: React.FC<AuthenticationMatrixProps> = ({
             <div className="flex items-center justify-between">
               <span className="text-xs text-slate-400 font-mono">Header From:</span>
               <span className="font-mono text-[10px] text-slate-300 truncate max-w-[140px]">
-                {alignment?.header_from_domain || 'UNAVAILABLE'}
+                {String(alignment?.header_from_domain || 'UNAVAILABLE')}
               </span>
             </div>
 

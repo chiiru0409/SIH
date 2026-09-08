@@ -170,11 +170,11 @@ export const ThreatClassificationPanel: React.FC<ThreatClassificationPanelProps>
                     <Badge variant="severity" severity={ind?.severity || 'LOW'} size="sm" />
                   </div>
                   <p className="text-[11px] text-slate-400 leading-snug">
-                    {ind?.description || ''}
+                    {typeof ind?.description === 'string' ? ind.description : (ind?.description ? JSON.stringify(ind.description) : '')}
                   </p>
                   {ind?.evidence && (
                     <div className="font-mono text-[10px] text-cyan-300 bg-cyber-bg px-2 py-0.5 rounded border border-cyber-border truncate">
-                      MATCH: "{ind.evidence}"
+                      MATCH: "{typeof ind.evidence === 'string' ? ind.evidence : JSON.stringify(ind.evidence)}"
                     </div>
                   )}
                 </div>

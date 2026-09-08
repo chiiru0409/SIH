@@ -195,6 +195,9 @@ export const App: React.FC = () => {
       <Header
         activeTab={activeTab}
         onTabChange={(tab) => {
+          if (activeCaseDetail) {
+            handleResetCase();
+          }
           setActiveTab(tab);
           if (tab === 'cases') {
             loadCaseList();

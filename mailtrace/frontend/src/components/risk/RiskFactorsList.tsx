@@ -65,7 +65,7 @@ export const RiskFactorsList: React.FC<RiskFactorsListProps> = ({ factors, class
                     <div className="mt-1 flex items-start space-x-1.5 text-slate-400 text-xs">
                       <FileSearch className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
                       <span className="font-mono text-[11px] text-slate-300 break-all leading-tight">
-                        {item.evidence}
+                        {typeof item.evidence === 'string' ? item.evidence : JSON.stringify(item.evidence)}
                       </span>
                     </div>
                   )}

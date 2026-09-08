@@ -196,7 +196,7 @@ export const InfrastructurePanel: React.FC<InfrastructurePanelProps> = ({
                     {nameservers.length > 0 && (
                       <div className="pt-2 border-t border-cyber-border/30 text-[10px] font-mono text-slate-400">
                         <span className="text-slate-500">Nameservers: </span>
-                        {nameservers.join(', ')}
+                        {nameservers.map(ns => typeof ns === 'string' ? ns : (ns?.host || ns?.name || JSON.stringify(ns))).join(', ')}
                       </div>
                     )}
 
@@ -228,7 +228,7 @@ export const InfrastructurePanel: React.FC<InfrastructurePanelProps> = ({
                           DEFANGED URL
                         </span>
                         <div className="font-mono text-xs font-bold text-cyan-300 break-all select-all">
-                          {u?.url ? defangUrl(u.url) : 'UNAVAILABLE'}
+                          {u?.url ? defangUrl(typeof u.url === 'string' ? u.url : String(u.url)) : 'UNAVAILABLE'}
                         </div>
                       </div>
                       <span className="font-mono text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded shrink-0">

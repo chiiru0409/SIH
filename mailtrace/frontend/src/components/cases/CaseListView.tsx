@@ -36,16 +36,21 @@ export const CaseListView: React.FC<CaseListViewProps> = ({
   const [sortOrder, setSortOrder] = useState<'NEWEST' | 'OLDEST' | 'RISK_DESC' | 'RISK_ASC'>('NEWEST');
 
   const filteredCases = useMemo(() => {
+    if (!Array.isArray(cases)) return [];
     return cases
       .filter((c) => {
+        if (!c) return false;
+        const caseIdStr = String(c.case_id || '');
+        const filenameStr = String(c.original_filename || '');
+        const q = searchQuery.toLowerCase();
         const matchesQuery = 
           !searchQuery ||
-          c.case_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          c.original_filename.toLowerCase().includes(searchQuery.toLowerCase());
+          caseIdStr.toLowerCase().includes(q) ||
+          filenameStr.toLowerCase().includes(q);
         
         const matchesSeverity =
           severityFilter === 'ALL' ||
-          (c.risk_label || 'LOW').toUpperCase() === severityFilter;
+          String(c.risk_label || 'LOW').toUpperCase() === severityFilter;
 
         return matchesQuery && matchesSeverity;
       })

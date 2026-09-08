@@ -61,32 +61,78 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  // Safe Defensive Extractions
+  // Safe Defensive Extractions Helper
+  const extractString = (val: any): string | null => {
+    if (typeof val === 'string') return val;
+    if (val && typeof val === 'object') {
+      if (typeof val.email === 'string') return val.email;
+      if (typeof val.address === 'string') return val.address;
+      if (typeof val.name === 'string') return val.name;
+      if (typeof val.value === 'string') return val.value;
+      if (typeof val.domain === 'string') return val.domain;
+    }
+    return null;
+  };
+
   const caseId = caseData?.case_id || '';
   const originalFilename = caseData?.original_filename || 'unknown.eml';
   const riskLabel = caseData?.risk_label || (typeof caseData?.risk_score === 'number' 
     ? (caseData.risk_score >= 80 ? 'CRITICAL' : caseData.risk_score >= 60 ? 'HIGH' : caseData.risk_score >= 30 ? 'MEDIUM' : 'LOW')
     : 'LOW');
 
-  const parsed = caseData?.parsed_email || (caseData as any)?.email_analysis?.parsed_email || {};
-  const headers = parsed?.headers || (typeof parsed === 'object' ? parsed : {}) || {};
+  const parsed = (caseData?.parsed_email && typeof caseData.parsed_email === 'object')
+    ? caseData.parsed_email
+    : (caseData as any)?.email_analysis?.parsed_email || {};
+  const headers = (parsed?.headers && typeof parsed.headers === 'object') ? parsed.headers : {};
   
+  const senderEmail = extractString(parsed?.sender?.email) ||
+    extractString(parsed?.from_address) ||
+    extractString(parsed?.sender) ||
+    extractString(parsed?.from) ||
+    (typeof parsed?.from === 'string' ? parsed.from : null);
+
+  const senderDisplayName = extractString(parsed?.sender?.display_name) ||
+    extractString(parsed?.from_display_name) ||
+    extractString(parsed?.from_display) ||
+    null;
+
+  const senderDomain = extractString(parsed?.sender?.domain) ||
+    extractString(parsed?.from_domain) ||
+    (senderEmail && senderEmail.includes('@') ? senderEmail.split('@')[1] : null);
+
   const sender = {
-    email: parsed?.sender?.email || parsed?.from_address || parsed?.from || null,
-    display_name: parsed?.sender?.display_name || parsed?.from_display_name || parsed?.from_display || null,
-    domain: parsed?.sender?.domain || parsed?.from_domain || (typeof parsed?.from === 'string' && parsed.from.includes('@') ? parsed.from.split('@')[1] : null),
+    email: senderEmail,
+    display_name: senderDisplayName,
+    domain: senderDomain,
   };
+
+  const replyToEmail = extractString(parsed?.reply_to?.email) ||
+    extractString(parsed?.reply_to) ||
+    null;
+
+  const returnPathEmail = extractString(parsed?.return_path?.email) ||
+    extractString(parsed?.return_path) ||
+    null;
+
+  const returnPathDomain = extractString(parsed?.return_path?.domain) ||
+    (returnPathEmail && returnPathEmail.includes('@') ? returnPathEmail.split('@')[1] : returnPathEmail);
+
+  const dkimDomain = extractString(parsed?.authentication?.dkim?.domain) || null;
 
   const rawTo = parsed?.recipients?.to || parsed?.to_addresses || parsed?.to || [];
   const rawCc = parsed?.recipients?.cc || parsed?.cc_addresses || parsed?.cc || [];
   
   const toRecipients: string[] = Array.isArray(rawTo)
-    ? rawTo.map((r: any) => (typeof r === 'string' ? r : r?.address || r?.email || '')).filter(Boolean)
-    : typeof rawTo === 'string' ? [rawTo] : [];
+    ? rawTo.map((r: any) => extractString(r) || (typeof r === 'string' ? r : '')).filter(Boolean)
+    : typeof rawTo === 'string' ? [rawTo] : (extractString(rawTo) ? [extractString(rawTo)!] : []);
 
   const ccRecipients: string[] = Array.isArray(rawCc)
-    ? rawCc.map((r: any) => (typeof r === 'string' ? r : r?.address || r?.email || '')).filter(Boolean)
-    : typeof rawCc === 'string' ? [rawCc] : [];
+    ? rawCc.map((r: any) => extractString(r) || (typeof r === 'string' ? r : '')).filter(Boolean)
+    : typeof rawCc === 'string' ? [rawCc] : (extractString(rawCc) ? [extractString(rawCc)!] : []);
+
+  const emailSubject = extractString(headers?.subject) || extractString(parsed?.subject) || (typeof headers?.subject === 'string' ? headers.subject : '(No Subject)');
+  const emailDate = extractString(headers?.date_iso) || extractString(headers?.date_raw) || extractString(headers?.date) || extractString(parsed?.date) || null;
+  const messageId = extractString(headers?.message_id) || extractString(parsed?.message_id) || null;
 
   const auth = parsed?.authentication || parsed?.authentication_results || {};
   const relay = parsed?.received_chain || parsed?.routing_hops || parsed?.smtp_trace || {};
@@ -136,6 +182,36 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
     { id: 'raw_email', label: 'Email Content', icon: <Mail className="w-3.5 h-3.5" /> },
   ];
 
+  const authAlignmentObj = {
+    spf_aligned: parsed?.authentication?.spf?.aligned ?? null,
+    dkim_aligned: parsed?.authentication?.dkim?.aligned ?? null,
+    dmarc_aligned: parsed?.authentication?.dmarc?.aligned ?? null,
+    dmarc_pass: parsed?.authentication?.dmarc?.status === 'pass',
+    header_from_domain: senderDomain || null,
+    envelope_from_domain: returnPathDomain || null,
+    dkim_domain: dkimDomain || null,
+  };
+
+  const identityEmailObj = {
+    from: senderEmail || null,
+    from_display: senderDisplayName || null,
+    to: toRecipients,
+    cc: ccRecipients,
+    subject: emailSubject || null,
+    date: emailDate || null,
+    message_id: messageId || null,
+    reply_to: replyToEmail || null,
+    return_path: returnPathEmail || null,
+  };
+
+  const relayTraceObj = {
+    hop_count: relay?.hop_count || (Array.isArray(relay?.chain || relay?.received_chain) ? (relay?.chain || relay?.received_chain).length : 0),
+    received_chain: Array.isArray(relay?.chain || relay?.received_chain) ? (relay.chain || relay.received_chain) : [],
+    public_ips: Array.isArray(relay?.public_ips_observed || relay?.public_ips) ? (relay.public_ips_observed || relay.public_ips) : [],
+    earliest_node: relay?.earliest_observed_node || relay?.earliest_node || null,
+    confidence_note: typeof relay?.confidence_note === 'string' ? relay.confidence_note : null,
+  };
+
   return (
     <div className={`space-y-6 ${className}`}>
       
@@ -167,7 +243,7 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
                 <span>CASE: {originalFilename}</span>
               </h1>
               <div className="flex items-center space-x-3 text-xs font-mono text-slate-400 mt-1">
-                <span>SUBJECT: <strong className="text-slate-200">{headers?.subject || parsed?.subject || '(No Subject)'}</strong></span>
+                <span>SUBJECT: <strong className="text-slate-200">{emailSubject}</strong></span>
                 <span>•</span>
                 <span>INGESTED: {caseData?.created_at ? formatDate(caseData.created_at) : 'RECENT'}</span>
               </div>
@@ -249,42 +325,18 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
           <RiskFactorsList factors={risk?.top_factors?.length ? risk.top_factors : (risk?.risk_factors || [])} />
           <AuthenticationMatrix
             auth={auth}
-            alignment={{
-              spf_aligned: parsed?.authentication?.spf?.aligned ?? null,
-              dkim_aligned: parsed?.authentication?.dkim?.aligned ?? null,
-              dmarc_aligned: parsed?.authentication?.dmarc?.aligned ?? null,
-              dmarc_pass: parsed?.authentication?.dmarc?.status === 'pass',
-              header_from_domain: sender?.domain || null,
-              envelope_from_domain: parsed?.return_path?.domain || parsed?.return_path || null,
-              dkim_domain: parsed?.authentication?.dkim?.domain || null,
-            }}
+            alignment={authAlignmentObj}
           />
         </div>
 
         {/* Third Row: Identity Inspector + Relay Timeline */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <IdentityInspector
-            email={{
-              from: sender?.email || null,
-              from_display: sender?.display_name || null,
-              to: toRecipients,
-              cc: ccRecipients,
-              subject: headers?.subject || null,
-              date: headers?.date_iso || headers?.date_raw || headers?.date || null,
-              message_id: headers?.message_id || null,
-              reply_to: parsed?.reply_to?.email || parsed?.reply_to || null,
-              return_path: parsed?.return_path?.email || parsed?.return_path || null,
-            }}
+            email={identityEmailObj}
             flags={indicators?.flags || {}}
           />
           <RelayTimeline
-            smtpTrace={{
-              hop_count: relay?.hop_count || 0,
-              received_chain: relay?.chain || relay?.received_chain || [],
-              public_ips: relay?.public_ips_observed || relay?.public_ips || [],
-              earliest_node: relay?.earliest_observed_node || relay?.earliest_node || null,
-              confidence_note: relay?.confidence_note || null,
-            }}
+            smtpTrace={relayTraceObj}
           />
         </div>
       </div>
@@ -294,38 +346,14 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
         <ForensicEvidencePanel forensics={forensicAnalysis} />
         <AuthenticationMatrix
           auth={auth}
-          alignment={{
-            spf_aligned: parsed?.authentication?.spf?.aligned ?? null,
-            dkim_aligned: parsed?.authentication?.dkim?.aligned ?? null,
-            dmarc_aligned: parsed?.authentication?.dmarc?.aligned ?? null,
-            dmarc_pass: parsed?.authentication?.dmarc?.status === 'pass',
-            header_from_domain: sender?.domain || null,
-            envelope_from_domain: parsed?.return_path?.domain || parsed?.return_path || null,
-            dkim_domain: parsed?.authentication?.dkim?.domain || null,
-          }}
+          alignment={authAlignmentObj}
         />
         <IdentityInspector
-          email={{
-            from: sender?.email || null,
-            from_display: sender?.display_name || null,
-            to: toRecipients,
-            cc: ccRecipients,
-            subject: headers?.subject || null,
-            date: headers?.date_iso || headers?.date_raw || headers?.date || null,
-            message_id: headers?.message_id || null,
-            reply_to: parsed?.reply_to?.email || parsed?.reply_to || null,
-            return_path: parsed?.return_path?.email || parsed?.return_path || null,
-          }}
+          email={identityEmailObj}
           flags={indicators?.flags || {}}
         />
         <RelayTimeline
-          smtpTrace={{
-            hop_count: relay?.hop_count || 0,
-            received_chain: relay?.chain || relay?.received_chain || [],
-            public_ips: relay?.public_ips_observed || relay?.public_ips || [],
-            earliest_node: relay?.earliest_observed_node || relay?.earliest_node || null,
-            confidence_note: relay?.confidence_note || null,
-          }}
+          smtpTrace={relayTraceObj}
         />
       </div>
 
@@ -337,13 +365,13 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
 
       {/* TAB 4: INFRASTRUCTURE & GEO */}
       <div className={activeTab === 'infrastructure' ? 'block space-y-6' : 'hidden'} key="tab-infrastructure">
-        <GeoMap ips={ipIntel?.ips || []} />
+        <GeoMap ips={Array.isArray(ipIntel?.ips) ? ipIntel.ips : []} />
         <InfrastructurePanel
           infrastructure={{
             summary: ipIntel?.summary || {},
-            ips: ipIntel?.ips || [],
-            domains: domainIntel?.domains || [],
-            urls: urlIntel?.urls || [],
+            ips: Array.isArray(ipIntel?.ips) ? ipIntel.ips : [],
+            domains: Array.isArray(domainIntel?.domains) ? domainIntel.domains : [],
+            urls: Array.isArray(urlIntel?.urls) ? urlIntel.urls : [],
             limitations: [],
           }}
         />
