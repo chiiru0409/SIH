@@ -77,6 +77,50 @@ export const AuthenticationMatrix: React.FC<AuthenticationMatrixProps> = ({
   const spfAlign = getAlignmentBadge(alignment?.spf_aligned);
   const dkimAlign = getAlignmentBadge(alignment?.dkim_aligned);
 
+  const getDmarcPolicyBadge = () => {
+    if (alignment?.dmarc_pass === true) {
+      return {
+        label: 'PASS',
+        className: 'text-emerald-400 font-bold',
+      };
+    }
+    const dmarcObj = auth?.dmarc;
+    const dmarcStatusStr = (typeof dmarcObj === 'object' && dmarcObj ? (dmarcObj as any).status : dmarcObj) || '';
+    const dmarcPolicyStr = (typeof dmarcObj === 'object' && dmarcObj ? (dmarcObj as any).policy : null) || '';
+    const s = String(dmarcStatusStr).toLowerCase();
+
+    if (s === 'fail') {
+      return {
+        label: 'FAIL',
+        className: 'text-red-400 font-bold',
+      };
+    }
+    if (dmarcPolicyStr) {
+      return {
+        label: `POLICY: ${dmarcPolicyStr.toUpperCase()}`,
+        className: 'text-amber-400 font-bold',
+      };
+    }
+    if (s === 'pass') {
+      return {
+        label: 'PASS',
+        className: 'text-emerald-400 font-bold',
+      };
+    }
+    if (alignment?.dmarc_pass === false) {
+      return {
+        label: 'NON-ALIGNED',
+        className: 'text-amber-400 font-bold',
+      };
+    }
+    return {
+      label: 'UNRECORDED',
+      className: 'text-slate-400 font-bold',
+    };
+  };
+
+  const dmarcPolicyEval = getDmarcPolicyBadge();
+
   return (
     <Card
       title="AUTHENTICATION & ALIGNMENT MATRIX"
@@ -181,8 +225,8 @@ export const AuthenticationMatrix: React.FC<AuthenticationMatrixProps> = ({
 
             <div className="pt-2 border-t border-cyber-border/40 text-[10px] font-mono text-slate-400 flex items-center justify-between">
               <span className="text-slate-500">Policy Evaluation:</span>
-              <span className={alignment?.dmarc_pass ? 'text-emerald-400 font-bold' : 'text-slate-400 font-bold'}>
-                {alignment?.dmarc_pass ? 'PASS' : 'REJECT / NONE / FAIL'}
+              <span className={dmarcPolicyEval.className}>
+                {dmarcPolicyEval.label}
               </span>
             </div>
           </div>

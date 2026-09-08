@@ -75,7 +75,7 @@ describe('MailTrace Dashboard Core Component Suite', () => {
     expect(screen.getByText('DKIM')).toBeInTheDocument();
     expect(screen.getAllByText('UNKNOWN').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('DMARC')).toBeInTheDocument();
-    expect(screen.getByText('FAIL')).toBeInTheDocument();
+    expect(screen.getAllByText('FAIL').length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders ForensicEvidencePanel distinguishing FACTS and INFERENCES', () => {

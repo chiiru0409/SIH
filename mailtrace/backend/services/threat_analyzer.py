@@ -618,9 +618,15 @@ def _classify_threat(
     elif is_high("urgency") and is_med_or_high("authority_pressure"):
         soc_score += 0.82
     elif is_high("urgency") and not is_high("financial_request") and not is_high("credential_request"):
-        soc_score += 0.80
-    elif is_med_or_high("urgency") or is_med_or_high("fear_manipulation"):
+        soc_score += 0.75
+    elif is_med_or_high("fear_manipulation"):
         soc_score += 0.60
+    elif is_med_or_high("urgency") and is_med_or_high("authority_pressure"):
+        soc_score += 0.65
+    elif signals_map.get("urgency") == "medium":
+        soc_score += 0.40
+    elif signals_map.get("urgency") == "low":
+        soc_score += 0.20
 
     scores[THREAT_SOCIAL_ENGINEERING] = min(1.0, soc_score)
 
@@ -699,20 +705,29 @@ def _generate_explanation(
 ) -> str:
     """
     Generate an explainable, fact-grounded human-readable summary.
+    Dynamically derived from observed structured signals with zero contradictions.
     """
     sender = parsed_email.get("sender", {})
     from_addr = sender.get("email") or "Unknown sender"
     subject = parsed_email.get("headers", {}).get("subject") or "No subject"
 
+    urgency_val = str(signals_map.get("urgency", "none")).lower()
+    cred_val = str(signals_map.get("credential_request", "none")).lower()
+    fin_val = str(signals_map.get("financial_request", "none")).lower()
+    imp_val = str(signals_map.get("impersonation", "none")).lower()
+    link_val = str(signals_map.get("suspicious_link", "none")).lower()
+    att_val = str(signals_map.get("attachment_threat", "none")).lower()
+    fear_val = str(signals_map.get("fear_manipulation", "none")).lower()
+    auth_val = str(signals_map.get("authority_pressure", "none")).lower()
+
+    explanation_parts: list[str] = []
+
+    # 1. Primary Classification Clause
     if primary_threat == THREAT_BENIGN:
-        return (
-            f"The email from '{from_addr}' with subject '{subject}' exhibits standard communication patterns. "
-            f"No significant urgency indicators, credential solicitation, financial fraud patterns, or authentication anomalies were detected."
+        explanation_parts.append(
+            f"The email from '{from_addr}' with subject '{subject}' exhibits standard communication patterns with low aggregate risk."
         )
-
-    explanation_parts = []
-
-    if primary_threat == THREAT_PHISHING:
+    elif primary_threat == THREAT_PHISHING:
         explanation_parts.append(
             "Potential phishing indicators detected. The message employs deceptive lures designed to induce the recipient into performing sensitive actions."
         )
@@ -737,23 +752,83 @@ def _generate_explanation(
             "Suspicious anomalies detected. While inconclusive for a specific attack taxonomy, multiple irregular structural, attachment, or header signals warrant caution."
         )
 
-    # Highlight specific key evidence points
-    key_evidence = []
+    # 2. Detected Signal Affirmations (Truthful attribution of observed signals)
+    detected_signals: list[str] = []
+    if urgency_val in ("low", "medium", "high"):
+        urg_ind = next((i for i in indicators if "urgency" in str(i.get("category", "")).lower() or "urgency" in str(i.get("indicator", "")).lower()), None)
+        ev = f" ('{urg_ind.get('evidence')}')" if urg_ind and urg_ind.get("evidence") else ""
+        detected_signals.append(f"{urgency_val}-level urgency language{ev}")
 
-    # High severity indicators
-    high_inds = [ind for ind in indicators if ind.get("severity") == "high"]
-    med_inds = [ind for ind in indicators if ind.get("severity") == "medium"]
+    if fear_val in ("low", "medium", "high"):
+        fear_ind = next((i for i in indicators if "fear" in str(i.get("category", "")).lower() or "fear" in str(i.get("indicator", "")).lower()), None)
+        ev = f" ('{fear_ind.get('evidence')}')" if fear_ind and fear_ind.get("evidence") else ""
+        detected_signals.append(f"{fear_val}-level fear/consequence framing{ev}")
 
-    for ind in (high_inds + med_inds)[:3]:
-        key_evidence.append(f"{ind.get('description')} ({ind.get('evidence', '')})")
+    if auth_val in ("low", "medium", "high"):
+        auth_ind = next((i for i in indicators if "authority" in str(i.get("category", "")).lower() or "authority" in str(i.get("indicator", "")).lower() or "secrecy" in str(i.get("category", "")).lower()), None)
+        ev = f" ('{auth_ind.get('evidence')}')" if auth_ind and auth_ind.get("evidence") else ""
+        detected_signals.append(f"{auth_val}-level authority/secrecy pressure{ev}")
 
-    if key_evidence:
-        explanation_parts.append("Key contributing signals: " + "; ".join(key_evidence) + ".")
+    if cred_val in ("low", "medium", "high") and primary_threat != THREAT_CREDENTIAL_HARVESTING:
+        cred_ind = next((i for i in indicators if "credential" in str(i.get("category", "")).lower() or "credential" in str(i.get("indicator", "")).lower()), None)
+        ev = f" ('{cred_ind.get('evidence')}')" if cred_ind and cred_ind.get("evidence") else ""
+        detected_signals.append(f"{cred_val}-level credential prompt language{ev}")
 
+    if fin_val in ("low", "medium", "high") and primary_threat != THREAT_BEC:
+        fin_ind = next((i for i in indicators if "financial" in str(i.get("category", "")).lower() or "financial" in str(i.get("indicator", "")).lower()), None)
+        ev = f" ('{fin_ind.get('evidence')}')" if fin_ind and fin_ind.get("evidence") else ""
+        detected_signals.append(f"{fin_val}-level financial/payment request{ev}")
+
+    if imp_val in ("low", "medium", "high") and primary_threat != THREAT_IMPERSONATION:
+        imp_ind = next((i for i in indicators if "impersonation" in str(i.get("category", "")).lower() or "impersonation" in str(i.get("indicator", "")).lower()), None)
+        ev = f" ('{imp_ind.get('evidence')}')" if imp_ind and imp_ind.get("evidence") else ""
+        detected_signals.append(f"{imp_val}-level identity/brand pretexting{ev}")
+
+    if primary_threat == THREAT_BENIGN:
+        if detected_signals:
+            explanation_parts.append(
+                f"Isolated minor observations were identified ({'; '.join(detected_signals)}), but remain below actionable malicious thresholds in isolation."
+            )
+        else:
+            explanation_parts.append(
+                "No significant urgency indicators or coercive psychological framing were detected."
+            )
+    else:
+        if detected_signals:
+            explanation_parts.append(
+                f"Contributing behavioral signals: {'; '.join(detected_signals)}."
+            )
+
+    # 3. Explicit Statement of Absent Threats (Truthful negation)
+    absent_categories: list[str] = []
+    if cred_val == "none" and primary_threat != THREAT_CREDENTIAL_HARVESTING:
+        absent_categories.append("credential solicitation")
+    if fin_val == "none" and primary_threat != THREAT_BEC:
+        absent_categories.append("financial fraud patterns")
+    if link_val == "none":
+        absent_categories.append("deceptive links")
+    if att_val == "none":
+        absent_categories.append("dangerous attachments")
+
+    if primary_threat == THREAT_BENIGN and absent_categories:
+        explanation_parts.append(f"No {', '.join(absent_categories)} were detected.")
+
+    # 4. Key Contributing Forensic Findings
+    if primary_threat != THREAT_BENIGN:
+        key_evidence = []
+        high_inds = [ind for ind in indicators if ind.get("severity") == "high"]
+        med_inds = [ind for ind in indicators if ind.get("severity") == "medium"]
+        for ind in (high_inds + med_inds)[:3]:
+            key_evidence.append(f"{ind.get('description')} ({ind.get('evidence', '')})")
+        if key_evidence:
+            explanation_parts.append("Key forensic findings: " + "; ".join(key_evidence) + ".")
+
+    # 5. Secondary Threats
     if secondary_threats:
         sec_str = ", ".join(secondary_threats)
         explanation_parts.append(f"Associated secondary threat categories: {sec_str}.")
 
+    # 6. Attribution Safeguard
     explanation_parts.append(
         "Note: Classification is an algorithmic assessment based on observed message content and header metadata, and does not assert physical attacker attribution."
     )
@@ -1006,3 +1081,90 @@ def analyze_threat(
     }
 
     return result
+
+
+def validate_threat_consistency(
+    threat_analysis: dict[str, Any],
+    risk_assessment: dict[str, Any] | None = None,
+    parsed_email: dict[str, Any] | None = None,
+) -> list[str]:
+    """
+    Automated consistency validator to detect internal contradictions across:
+    - Signals vs. Explanation narrative
+    - Signals vs. Risk factors
+    - Threat classification vs. Supporting evidence
+    - Confidence sanity
+
+    Returns a list of contradiction error strings (empty list [] if fully consistent).
+    """
+    contradictions: list[str] = []
+
+    if not isinstance(threat_analysis, dict):
+        return ["Threat analysis is missing or not a dictionary."]
+
+    primary = threat_analysis.get("primary_threat", "")
+    secondaries = threat_analysis.get("secondary_threats", []) or []
+    confidence = float(threat_analysis.get("confidence", 0.0))
+    signals = threat_analysis.get("signals", {}) or {}
+    explanation = threat_analysis.get("explanation", "") or ""
+    exp_lower = explanation.lower()
+
+    # 1. Check Signal vs. Explanation Contradictions
+    urgency_level = signals.get("urgency", "none")
+    if urgency_level in ("medium", "high") and ("no significant urgency" in exp_lower or "no urgency" in exp_lower):
+        contradictions.append(f"Urgency signal is '{urgency_level}' but explanation claims no urgency indicators were detected.")
+
+    cred_level = signals.get("credential_request", "none")
+    if cred_level in ("medium", "high") and ("no credential solicitation" in exp_lower or "no credential" in exp_lower):
+        contradictions.append(f"Credential request signal is '{cred_level}' but explanation claims no credential solicitation was detected.")
+
+    fin_level = signals.get("financial_request", "none")
+    if fin_level in ("medium", "high") and ("no financial fraud" in exp_lower or "no financial manipulation" in exp_lower or "no financial" in exp_lower):
+        contradictions.append(f"Financial request signal is '{fin_level}' but explanation claims no financial patterns were detected.")
+
+    link_level = signals.get("suspicious_link", "none")
+    if link_level in ("medium", "high") and "no deceptive links" in exp_lower:
+        contradictions.append(f"Suspicious link signal is '{link_level}' but explanation claims no deceptive links were detected.")
+
+    att_level = signals.get("attachment_threat", "none")
+    if att_level in ("medium", "high") and "no dangerous attachments" in exp_lower:
+        contradictions.append(f"Attachment threat signal is '{att_level}' but explanation claims no dangerous attachments were detected.")
+
+    # 2. Check Classification vs. Supporting Evidence
+    if primary == THREAT_BENIGN:
+        # Benign classification should not have critical signals or high urgency+fear
+        if urgency_level == "high" and signals.get("fear_manipulation") == "high":
+            contradictions.append("Primary classification is BENIGN despite high urgency and high fear manipulation signals.")
+        if cred_level == "high" and link_level == "high":
+            contradictions.append("Primary classification is BENIGN despite high credential request and high suspicious link signals.")
+
+    if primary == THREAT_CREDENTIAL_HARVESTING and cred_level == "none":
+        contradictions.append("Primary classification is CREDENTIAL_HARVESTING but credential_request signal is 'none'.")
+
+    if primary == THREAT_BEC and fin_level == "none" and signals.get("authority_pressure") == "none":
+        contradictions.append("Primary classification is BEC but neither financial_request nor authority_pressure signals were observed.")
+
+    if primary == THREAT_PHISHING and all(signals.get(k) == "none" for k in ("impersonation", "credential_request", "suspicious_link", "attachment_threat", "fear_manipulation")):
+        contradictions.append("Primary classification is PHISHING but no supporting phishing signals were observed.")
+
+    if THREAT_SOCIAL_ENGINEERING in secondaries and all(signals.get(k) in ("none", "") for k in ("urgency", "fear_manipulation", "authority_pressure")):
+        contradictions.append("Secondary threats include SOCIAL_ENGINEERING but no urgency, fear, or authority pressure signals were detected.")
+
+    # 3. Check Risk Assessment Factors vs. Signals
+    if risk_assessment and isinstance(risk_assessment, dict):
+        risk_factors = risk_assessment.get("top_risk_factors", []) or []
+        for factor in risk_factors:
+            f_name = factor.get("factor", "")
+            f_pts = float(factor.get("points", 0.0))
+            if f_pts > 0:
+                if "Urgent Coercion Language" in f_name and urgency_level == "none":
+                    contradictions.append("Risk assessment awarded points for Urgent Coercion Language, but urgency threat signal is 'none'.")
+                if "Credential Prompt Language" in f_name and cred_level == "none":
+                    contradictions.append("Risk assessment awarded points for Credential Prompt Language, but credential_request signal is 'none'.")
+                if "Financial / Wire Transfer Request" in f_name and fin_level == "none":
+                    contradictions.append("Risk assessment awarded points for Financial / Wire Transfer Request, but financial_request signal is 'none'.")
+                if "Fear & Intimidation Language" in f_name and signals.get("fear_manipulation", "none") == "none":
+                    contradictions.append("Risk assessment awarded points for Fear & Intimidation Language, but fear_manipulation signal is 'none'.")
+
+    return contradictions
+

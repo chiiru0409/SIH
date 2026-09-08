@@ -14,7 +14,7 @@ export const RelayTimeline: React.FC<RelayTimelineProps> = ({ smtpTrace, classNa
     return (
       <Card title="SMTP RELAY & RECEIVED HEADER TIMELINE" className={className}>
         <div className="py-6 text-center text-xs font-mono text-slate-500">
-          NO RECEIVED HEADERS DETECTED (SINGLE HOP OR DIRECT INGEST)
+          No Received headers were observed in the supplied message. Relay-path reconstruction is unavailable.
         </div>
       </Card>
     );
