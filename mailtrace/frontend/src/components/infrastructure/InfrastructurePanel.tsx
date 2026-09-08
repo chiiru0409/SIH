@@ -36,9 +36,9 @@ export const InfrastructurePanel: React.FC<InfrastructurePanelProps> = ({
     );
   }
 
-  const ips = infrastructure.ips || [];
-  const domains = infrastructure.domains || [];
-  const urls = infrastructure.urls || [];
+  const ips = Array.isArray(infrastructure.ips) ? infrastructure.ips : [];
+  const domains = Array.isArray(infrastructure.domains) ? infrastructure.domains : [];
+  const urls = Array.isArray(infrastructure.urls) ? infrastructure.urls : [];
 
   const tabs = [
     { id: 'ips', label: 'IP Intelligence', count: ips.length, icon: <Server className="w-3.5 h-3.5" /> },
@@ -73,21 +73,21 @@ export const InfrastructurePanel: React.FC<InfrastructurePanelProps> = ({
             ) : (
               ips.map((ipRec, idx) => (
                 <div
-                  key={`ip-${ipRec.ip}-${idx}`}
+                  key={`ip-${ipRec?.ip || idx}-${idx}`}
                   className="p-4 rounded-lg bg-cyber-surface border border-cyber-border space-y-3"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-cyber-border/40">
                     <div className="flex items-center space-x-2">
                       <span className="font-mono text-sm font-bold text-cyber-cyan">
-                        {defangIp(ipRec.ip)}
+                        {ipRec?.ip ? defangIp(ipRec.ip) : 'UNAVAILABLE'}
                       </span>
                       <span className="px-2 py-0.2 rounded bg-slate-800 text-slate-300 font-mono text-[10px]">
-                        IPv{ipRec.version} • {ipRec.classification || 'PUBLIC'}
+                        IPv{ipRec?.version || 4} • {ipRec?.classification || 'PUBLIC'}
                       </span>
                     </div>
 
                     <div className="text-[11px] font-mono text-slate-400">
-                      SRC: {ipRec.source || 'LOCAL_DB'}
+                      SRC: {ipRec?.source || 'LOCAL_DB'}
                     </div>
                   </div>
 
@@ -96,29 +96,29 @@ export const InfrastructurePanel: React.FC<InfrastructurePanelProps> = ({
                     <div>
                       <span className="text-slate-500 text-[10px] uppercase block">Location:</span>
                       <span className="text-slate-200">
-                        {ipRec.geo?.city ? `${ipRec.geo.city}, ` : ''}
-                        {ipRec.geo?.country || 'UNAVAILABLE'}
+                        {ipRec?.geo?.city ? `${ipRec.geo.city}, ` : ''}
+                        {ipRec?.geo?.country || 'UNAVAILABLE'}
                       </span>
                     </div>
 
                     <div>
                       <span className="text-slate-500 text-[10px] uppercase block">Autonomous System (ASN):</span>
                       <span className="text-slate-200 font-bold">
-                        {ipRec.asn?.asn || 'UNAVAILABLE'}
+                        {ipRec?.asn?.asn || 'UNAVAILABLE'}
                       </span>
                     </div>
 
                     <div>
                       <span className="text-slate-500 text-[10px] uppercase block">Organization:</span>
-                      <span className="text-slate-200 truncate block" title={ipRec.asn?.organization || ''}>
-                        {ipRec.asn?.organization || 'UNAVAILABLE'}
+                      <span className="text-slate-200 truncate block" title={ipRec?.asn?.organization || ''}>
+                        {ipRec?.asn?.organization || 'UNAVAILABLE'}
                       </span>
                     </div>
 
                     <div>
                       <span className="text-slate-500 text-[10px] uppercase block">BGP Network CIDR:</span>
                       <span className="text-slate-200">
-                        {ipRec.asn?.network || 'UNAVAILABLE'}
+                        {ipRec?.asn?.network || 'UNAVAILABLE'}
                       </span>
                     </div>
                   </div>
@@ -138,18 +138,19 @@ export const InfrastructurePanel: React.FC<InfrastructurePanelProps> = ({
               </div>
             ) : (
               domains.map((dom, idx) => {
-                const rdap = dom.rdap || {};
+                const rdap = dom?.rdap || {};
+                const nameservers = Array.isArray(rdap.nameservers) ? rdap.nameservers : [];
                 return (
                   <div
-                    key={`dom-${dom.domain}-${idx}`}
+                    key={`dom-${dom?.domain || idx}-${idx}`}
                     className="p-4 rounded-lg bg-cyber-surface border border-cyber-border space-y-3"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-cyber-border/40">
                       <div className="flex items-center space-x-2">
                         <span className="font-mono text-sm font-bold text-slate-100">
-                          {dom.domain}
+                          {dom?.domain || 'UNAVAILABLE'}
                         </span>
-                        {dom.registrable_domain !== dom.domain && (
+                        {dom?.registrable_domain && dom.registrable_domain !== dom.domain && (
                           <span className="px-2 py-0.2 rounded bg-slate-800 text-slate-400 font-mono text-[10px]">
                             Parent: {dom.registrable_domain}
                           </span>
@@ -157,7 +158,7 @@ export const InfrastructurePanel: React.FC<InfrastructurePanelProps> = ({
                       </div>
 
                       <div className="text-[11px] font-mono text-slate-400">
-                        TLD: {dom.tld || 'UNAVAILABLE'}
+                        TLD: {dom?.tld || 'UNAVAILABLE'}
                       </div>
                     </div>
 
@@ -192,10 +193,10 @@ export const InfrastructurePanel: React.FC<InfrastructurePanelProps> = ({
                       </div>
                     </div>
 
-                    {rdap.nameservers && rdap.nameservers.length > 0 && (
+                    {nameservers.length > 0 && (
                       <div className="pt-2 border-t border-cyber-border/30 text-[10px] font-mono text-slate-400">
                         <span className="text-slate-500">Nameservers: </span>
-                        {rdap.nameservers.join(', ')}
+                        {nameservers.join(', ')}
                       </div>
                     )}
 
@@ -214,55 +215,58 @@ export const InfrastructurePanel: React.FC<InfrastructurePanelProps> = ({
                 No URLs identified in email body or HTML payload.
               </div>
             ) : (
-              urls.map((u, idx) => (
-                <div
-                  key={`url-${u.url_hash || idx}`}
-                  className="p-4 rounded-lg bg-cyber-surface border border-cyber-border space-y-2.5"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-1 overflow-hidden">
-                      <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500">
-                        DEFANGED URL
+              urls.map((u, idx) => {
+                const urlIndicators = Array.isArray(u?.indicators) ? u.indicators : [];
+                return (
+                  <div
+                    key={`url-${u?.url_hash || idx}-${idx}`}
+                    className="p-4 rounded-lg bg-cyber-surface border border-cyber-border space-y-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1 overflow-hidden">
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500">
+                          DEFANGED URL
+                        </span>
+                        <div className="font-mono text-xs font-bold text-cyan-300 break-all select-all">
+                          {u?.url ? defangUrl(u.url) : 'UNAVAILABLE'}
+                        </div>
+                      </div>
+                      <span className="font-mono text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded shrink-0">
+                        {u?.scheme ? u.scheme.toUpperCase() : 'HTTP'}
                       </span>
-                      <div className="font-mono text-xs font-bold text-cyan-300 break-all select-all">
-                        {defangUrl(u.url)}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-cyber-border/40 text-[11px] font-mono">
+                      <div>
+                        <span className="text-slate-500 text-[10px] block">Hostname:</span>
+                        <span className="text-slate-200 break-all">{u?.hostname || 'UNAVAILABLE'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 text-[10px] block">Path:</span>
+                        <span className="text-slate-200 break-all">{u?.path || '/'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 text-[10px] block">URL SHA-256 Hash:</span>
+                        <span className="text-slate-400 text-[10px] break-all">{u?.url_hash || 'UNAVAILABLE'}</span>
                       </div>
                     </div>
-                    <span className="font-mono text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded shrink-0">
-                      {u.scheme ? u.scheme.toUpperCase() : 'HTTP'}
-                    </span>
+
+                    {urlIndicators.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {urlIndicators.map((ind, i) => (
+                          <span
+                            key={`ind-${i}`}
+                            className="px-2 py-0.2 rounded bg-amber-950/40 border border-amber-500/30 text-amber-400 font-mono text-[10px]"
+                          >
+                            {ind}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-cyber-border/40 text-[11px] font-mono">
-                    <div>
-                      <span className="text-slate-500 text-[10px] block">Hostname:</span>
-                      <span className="text-slate-200 break-all">{u.hostname || 'UNAVAILABLE'}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 text-[10px] block">Path:</span>
-                      <span className="text-slate-200 break-all">{u.path || '/'}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 text-[10px] block">URL SHA-256 Hash:</span>
-                      <span className="text-slate-400 text-[10px] break-all">{u.url_hash || 'UNAVAILABLE'}</span>
-                    </div>
-                  </div>
-
-                  {u.indicators && u.indicators.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {u.indicators.map((ind, i) => (
-                        <span
-                          key={`ind-${i}`}
-                          className="px-2 py-0.2 rounded bg-amber-950/40 border border-amber-500/30 text-amber-400 font-mono text-[10px]"
-                        >
-                          {ind}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}

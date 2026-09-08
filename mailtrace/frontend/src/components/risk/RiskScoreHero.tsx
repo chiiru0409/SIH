@@ -20,9 +20,13 @@ export const RiskScoreHero: React.FC<RiskScoreHeroProps> = ({ riskAssessment, cl
     );
   }
 
-  const score = Math.min(100, Math.max(0, Math.round(riskAssessment.risk_score || 0)));
+  const score = Math.min(100, Math.max(0, Math.round(riskAssessment.risk_score ?? 0)));
   const severity = (riskAssessment.severity || 'LOW').toUpperCase();
-  const confidence = Math.round((riskAssessment.confidence || 0.8) * 100);
+  const confidence = Math.round((riskAssessment.confidence ?? 0.8) * 100);
+  const riskFactors = Array.isArray(riskAssessment.risk_factors) ? riskAssessment.risk_factors : [];
+  const categoryScores = riskAssessment.category_scores && typeof riskAssessment.category_scores === 'object'
+    ? riskAssessment.category_scores
+    : {};
 
   // SVG Gauge calculations
   const radius = 70;
@@ -139,7 +143,7 @@ export const RiskScoreHero: React.FC<RiskScoreHeroProps> = ({ riskAssessment, cl
           <div className="flex items-center space-x-3 text-[11px] font-mono text-slate-400 mt-[-10px]">
             <span>CONFIDENCE: <strong className="text-slate-200">{confidence}%</strong></span>
             <span>•</span>
-            <span>METHOD: <strong className="text-slate-200">WEIGHTED</strong></span>
+            <span>METHOD: <strong className="text-slate-200">{riskAssessment.method || 'WEIGHTED'}</strong></span>
           </div>
         </div>
 
@@ -154,7 +158,7 @@ export const RiskScoreHero: React.FC<RiskScoreHeroProps> = ({ riskAssessment, cl
                 </span>
               </div>
               <span className="font-mono text-xs text-slate-400">
-                {riskAssessment.risk_factors.length} Risk Factors Detected
+                {riskFactors.length} Risk Factors Detected
               </span>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
@@ -163,13 +167,13 @@ export const RiskScoreHero: React.FC<RiskScoreHeroProps> = ({ riskAssessment, cl
           </div>
 
           {/* Category Scores Sub-Grid */}
-          {riskAssessment.category_scores && Object.keys(riskAssessment.category_scores).length > 0 && (
+          {Object.keys(categoryScores).length > 0 && (
             <div className="space-y-1.5">
               <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
                 Category Contribution Vector
               </span>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {Object.entries(riskAssessment.category_scores).map(([cat, pts]) => (
+                {Object.entries(categoryScores).map(([cat, pts]) => (
                   <div
                     key={cat}
                     className="p-2 rounded bg-cyber-surface border border-cyber-border/70 text-center"

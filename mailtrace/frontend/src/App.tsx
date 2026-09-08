@@ -15,6 +15,7 @@ import { InvestigationGraphView } from './components/graph/InvestigationGraphVie
 import { CampaignClusterView } from './components/campaign/CampaignClusterView';
 import { CaseListView } from './components/cases/CaseListView';
 import { CaseDetailWorkspace } from './components/cases/CaseDetailWorkspace';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { Alert } from './components/ui/Alert';
 import { 
   checkHealth, 
@@ -139,7 +140,13 @@ export const App: React.FC = () => {
     setLatestUpload(null);
   };
 
-  // Called when .eml is uploaded
+  // Called when upload succeeds (background refresh of lists)
+  const handleUploadSuccess = async (_uploadRes: UploadResponse) => {
+    await loadCaseList();
+    await loadGlobalCorrelation();
+  };
+
+  // Called when user clicks "Inspect Full Investigation"
   const handleUploadComplete = async (uploadRes: UploadResponse) => {
     setLatestUpload(uploadRes);
     await loadCaseList();
@@ -190,19 +197,28 @@ export const App: React.FC = () => {
 
         {/* VIEW 1: ACTIVE CASE DETAIL DEEP-DIVE (If a case is loaded) */}
         {activeCaseDetail ? (
-          <CaseDetailWorkspace
-            caseData={activeCaseDetail}
-            correlationData={activeCaseCorrelation}
-            onBack={() => handleResetCase()}
-            onSelectRelatedCase={(relatedId) => handleSelectCase(relatedId)}
-          />
+          <ErrorBoundary
+            fallbackTitle="INVESTIGATION WORKSPACE ERROR"
+            onReset={handleResetCase}
+          >
+            <CaseDetailWorkspace
+              caseData={activeCaseDetail}
+              correlationData={activeCaseCorrelation}
+              onBack={() => handleResetCase()}
+              onSelectRelatedCase={(relatedId) => handleSelectCase(relatedId)}
+            />
+          </ErrorBoundary>
         ) : (
           /* TAB ROUTING (When no specific case is locked in focus) */
-          <>
+          <ErrorBoundary
+            fallbackTitle="INVESTIGATION VIEW ERROR"
+            onReset={handleResetCase}
+          >
             {/* OVERVIEW & INGEST TAB */}
             {activeTab === 'overview' && (
               <div className="space-y-12">
                 <UploadZone
+                  onUploadSuccess={handleUploadSuccess}
                   onAnalysisComplete={handleUploadComplete}
                   onViewInvestigations={() => {
                     setActiveTab('cases');
@@ -320,7 +336,7 @@ export const App: React.FC = () => {
                 />
               </div>
             )}
-          </>
+          </ErrorBoundary>
         )}
 
       </main>

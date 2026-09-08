@@ -20,6 +20,7 @@ import type { UploadResponse } from '../../types/api';
 
 export interface UploadZoneProps {
   onAnalysisComplete: (result: UploadResponse) => void;
+  onUploadSuccess?: (result: UploadResponse) => void;
   onViewInvestigations: () => void;
 }
 
@@ -33,7 +34,11 @@ const STAGES: { key: Stage; label: string; desc: string; icon: React.ReactNode }
   { key: 'CORRELATING', label: 'CORRELATING', desc: 'Synthesizing unified risk & mapping investigation graph', icon: <Network className="w-3.5 h-3.5" /> },
 ];
 
-export const UploadZone: React.FC<UploadZoneProps> = ({ onAnalysisComplete, onViewInvestigations }) => {
+export const UploadZone: React.FC<UploadZoneProps> = ({ 
+  onAnalysisComplete, 
+  onUploadSuccess,
+  onViewInvestigations 
+}) => {
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [clientHash, setClientHash] = useState<string | null>(null);
@@ -125,7 +130,9 @@ export const UploadZone: React.FC<UploadZoneProps> = ({ onAnalysisComplete, onVi
       clearInterval(stageTimer);
       setStage('COMPLETE');
       setRecentResult(result);
-      onAnalysisComplete(result);
+      if (onUploadSuccess) {
+        onUploadSuccess(result);
+      }
     } catch (err: any) {
       clearInterval(stageTimer);
       setStage('ERROR');

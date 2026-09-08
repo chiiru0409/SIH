@@ -31,13 +31,19 @@ export const IdentityInspector: React.FC<IdentityInspectorProps> = ({
     );
   }
 
-  const fromEmail = email.from || 'UNAVAILABLE';
-  const replyTo = email.reply_to;
-  const returnPath = email.return_path;
-  const messageId = email.message_id || 'UNAVAILABLE';
+  const fromEmail = typeof email.from === 'string' ? email.from : 'UNAVAILABLE';
+  const replyTo = typeof email.reply_to === 'string' ? email.reply_to : null;
+  const returnPath = typeof email.return_path === 'string' ? email.return_path : null;
+  const messageId = typeof email.message_id === 'string' ? email.message_id : 'UNAVAILABLE';
 
-  const hasReplyMismatch = flags?.reply_to_mismatch || (replyTo && fromEmail && replyTo.toLowerCase() !== fromEmail.toLowerCase());
-  const hasReturnMismatch = flags?.return_path_mismatch || (returnPath && fromEmail && returnPath.toLowerCase() !== fromEmail.toLowerCase());
+  const hasReplyMismatch = flags?.reply_to_mismatch || 
+    (Boolean(replyTo && fromEmail && fromEmail !== 'UNAVAILABLE' && replyTo.toLowerCase() !== fromEmail.toLowerCase()));
+  const hasReturnMismatch = flags?.return_path_mismatch || 
+    (Boolean(returnPath && fromEmail && fromEmail !== 'UNAVAILABLE' && returnPath.toLowerCase() !== fromEmail.toLowerCase()));
+
+  const toRecipients = Array.isArray(email.to) 
+    ? email.to.map(r => (typeof r === 'string' ? r : (r as any)?.email || String(r))).filter(Boolean)
+    : [];
 
   return (
     <Card
@@ -131,7 +137,7 @@ export const IdentityInspector: React.FC<IdentityInspectorProps> = ({
           <div>
             <span className="text-slate-500 text-[10px] uppercase block">Recipients (To):</span>
             <span className="text-slate-300 break-all text-[11px]">
-              {email.to && email.to.length > 0 ? email.to.join(', ') : 'UNAVAILABLE'}
+              {toRecipients.length > 0 ? toRecipients.join(', ') : 'UNAVAILABLE'}
             </span>
           </div>
         </div>

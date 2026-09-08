@@ -14,12 +14,14 @@ export interface CampaignClusterViewProps {
 }
 
 export const CampaignClusterView: React.FC<CampaignClusterViewProps> = ({
-  campaigns = [],
+  campaigns,
   correlations = [],
   onSelectCase,
   className,
 }) => {
-  if (!campaigns || campaigns.length === 0) {
+  const campaignList = Array.isArray(campaigns) ? campaigns : [];
+
+  if (campaignList.length === 0) {
     return (
       <Card
         title="CAMPAIGN CLUSTER CORRELATION"
@@ -41,7 +43,7 @@ export const CampaignClusterView: React.FC<CampaignClusterViewProps> = ({
   return (
     <Card
       title="CORRELATED CAMPAIGN CLUSTERS"
-      subtitle={`Autonomous identification of multi-case infrastructure overlaps (${campaigns.length} clusters)`}
+      subtitle={`Autonomous identification of multi-case infrastructure overlaps (${campaignList.length} clusters)`}
       icon={<Layers className="w-4 h-4 text-cyber-cyan" />}
       className={className}
     >
@@ -55,12 +57,14 @@ export const CampaignClusterView: React.FC<CampaignClusterViewProps> = ({
 
         {/* Campaign Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {campaigns.map((camp, idx) => {
-            const strengthPct = Math.round(camp.correlation_strength || 80);
+          {campaignList.map((camp, idx) => {
+            const strengthPct = Math.round(camp?.correlation_strength || 80);
+            const sharedIndicators = Array.isArray(camp?.shared_indicators) ? camp.shared_indicators : [];
+            const caseIds = Array.isArray(camp?.case_ids) ? camp.case_ids : [];
 
             return (
               <div
-                key={camp.campaign_id || idx}
+                key={`campaign-${camp?.campaign_id || idx}-${idx}`}
                 className="p-5 rounded-xl bg-cyber-surface border border-cyber-border hover:border-cyber-cyan/40 transition-all space-y-4 shadow-lg"
               >
                 {/* Header */}
@@ -68,14 +72,14 @@ export const CampaignClusterView: React.FC<CampaignClusterViewProps> = ({
                   <div className="space-y-1">
                     <div className="flex items-center space-x-2">
                       <span className="font-mono text-xs font-bold text-slate-100">
-                        {camp.campaign_id}
+                        {camp?.campaign_id || `Cluster-${idx + 1}`}
                       </span>
                       <span className="px-2 py-0.5 rounded bg-purple-950/60 border border-purple-500/40 text-purple-300 font-mono text-[10px] font-bold">
                         POTENTIAL CAMPAIGN
                       </span>
                     </div>
                     <span className="text-[11px] font-mono text-slate-400 block">
-                      {camp.case_count} Correlated Cases Identified
+                      {camp?.case_count || caseIds.length} Correlated Cases Identified
                     </span>
                   </div>
 
@@ -91,19 +95,19 @@ export const CampaignClusterView: React.FC<CampaignClusterViewProps> = ({
 
                 {/* Explanation */}
                 <p className="text-xs text-slate-300 leading-relaxed font-sans">
-                  {camp.explanation || 'Cases within this cluster share common authoritative nameservers, sender envelope addresses, or URL hosting structures.'}
+                  {camp?.explanation || 'Cases within this cluster share common authoritative nameservers, sender envelope addresses, or URL hosting structures.'}
                 </p>
 
                 {/* Shared Indicators */}
-                {camp.shared_indicators && camp.shared_indicators.length > 0 && (
+                {sharedIndicators.length > 0 && (
                   <div className="space-y-1.5 pt-2 border-t border-cyber-border/40">
                     <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-semibold">
                       SHARED TECHNICAL INDICATORS
                     </span>
                     <div className="flex flex-wrap gap-1.5">
-                      {camp.shared_indicators.map((ind, i) => {
-                        const val = ind.value || ind.indicator || String(ind);
-                        const type = ind.type || 'indicator';
+                      {sharedIndicators.map((ind, i) => {
+                        const val = ind?.value || ind?.indicator || String(ind);
+                        const type = ind?.type || 'indicator';
 
                         return (
                           <span
@@ -120,20 +124,20 @@ export const CampaignClusterView: React.FC<CampaignClusterViewProps> = ({
                 )}
 
                 {/* Linked Cases List */}
-                {camp.case_ids && camp.case_ids.length > 0 && (
+                {caseIds.length > 0 && (
                   <div className="space-y-1.5 pt-2 border-t border-cyber-border/40">
                     <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-semibold">
-                      ASSOCIATED CASES ({camp.case_ids.length})
+                      ASSOCIATED CASES ({caseIds.length})
                     </span>
                     <div className="flex flex-wrap gap-2">
-                      {camp.case_ids.map((cid) => (
+                      {caseIds.map((cid, cIdx) => (
                         <button
-                          key={cid}
+                          key={`case-${cid}-${cIdx}`}
                           onClick={() => onSelectCase && onSelectCase(cid)}
                           className="px-2 py-1 rounded bg-cyber-bg hover:bg-slate-800 border border-cyber-border hover:border-cyber-cyan/50 text-slate-300 hover:text-white font-mono text-[10px] transition flex items-center space-x-1"
                         >
                           <Hash className="w-3 h-3 text-slate-500" />
-                          <span>{cid.slice(0, 8)}…</span>
+                          <span>{String(cid).slice(0, 8)}…</span>
                         </button>
                       ))}
                     </div>

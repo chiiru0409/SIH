@@ -32,12 +32,13 @@ export const ThreatClassificationPanel: React.FC<ThreatClassificationPanelProps>
   }
 
   const primaryThreat = threatAnalysis.primary_threat || 'SUSPICIOUS';
-  const confidencePct = Math.round((threatAnalysis.confidence || 0.5) * 100);
-  const secondaryThreats = threatAnalysis.secondary_threats || [];
-  const signals = threatAnalysis.signals || {};
+  const confidencePct = Math.round((threatAnalysis.confidence ?? 0.5) * 100);
+  const secondaryThreats = Array.isArray(threatAnalysis.secondary_threats) ? threatAnalysis.secondary_threats : [];
+  const signals = threatAnalysis.signals && typeof threatAnalysis.signals === 'object' ? threatAnalysis.signals : {};
+  const indicators = Array.isArray(threatAnalysis.indicators) ? threatAnalysis.indicators : [];
 
   const getSignalLevelBadge = (level: string = 'NONE') => {
-    const l = level.toUpperCase();
+    const l = String(level || 'NONE').toUpperCase();
     switch (l) {
       case 'HIGH':
         return 'bg-red-950/60 text-red-400 border-red-500/40 glow-red-sm';
@@ -94,9 +95,9 @@ export const ThreatClassificationPanel: React.FC<ThreatClassificationPanelProps>
                 SECONDARY THREATS
               </span>
               <div className="flex flex-wrap gap-1.5">
-                {secondaryThreats.map((threat) => (
+                {secondaryThreats.map((threat, i) => (
                   <span
-                    key={threat}
+                    key={`${threat}-${i}`}
                     className="px-2.5 py-1 rounded bg-purple-950/40 border border-purple-500/40 font-mono text-[11px] font-semibold text-purple-300 shadow-[0_0_8px_rgba(168,85,247,0.2)]"
                   >
                     {threat}
@@ -151,27 +152,27 @@ export const ThreatClassificationPanel: React.FC<ThreatClassificationPanelProps>
         </div>
 
         {/* Extracted Threat Indicators Sub-list */}
-        {threatAnalysis.indicators && threatAnalysis.indicators.length > 0 && (
+        {indicators.length > 0 && (
           <div className="space-y-2 pt-2 border-t border-cyber-border/40">
             <span className="text-[11px] font-mono uppercase tracking-wider text-slate-400 font-semibold">
-              SPECIFIC THREAT INDICATORS ({threatAnalysis.indicators.length})
+              SPECIFIC THREAT INDICATORS ({indicators.length})
             </span>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {threatAnalysis.indicators.map((ind, i) => (
+              {indicators.map((ind, i) => (
                 <div
-                  key={`${ind.indicator}-${i}`}
+                  key={`${ind?.indicator || 'ind'}-${i}`}
                   className="p-2.5 rounded bg-slate-900/50 border border-cyber-border text-xs space-y-1"
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-mono font-bold text-slate-200 truncate">
-                      {ind.indicator}
+                      {ind?.indicator || 'Indicator'}
                     </span>
-                    <Badge variant="severity" severity={ind.severity} size="sm" />
+                    <Badge variant="severity" severity={ind?.severity || 'LOW'} size="sm" />
                   </div>
                   <p className="text-[11px] text-slate-400 leading-snug">
-                    {ind.description}
+                    {ind?.description || ''}
                   </p>
-                  {ind.evidence && (
+                  {ind?.evidence && (
                     <div className="font-mono text-[10px] text-cyan-300 bg-cyber-bg px-2 py-0.5 rounded border border-cyber-border truncate">
                       MATCH: "{ind.evidence}"
                     </div>

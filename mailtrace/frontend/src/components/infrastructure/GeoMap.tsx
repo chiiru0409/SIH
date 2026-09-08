@@ -8,12 +8,21 @@ export interface GeoMapProps {
   className?: string;
 }
 
-export const GeoMap: React.FC<GeoMapProps> = ({ ips = [], className }) => {
+export const GeoMap: React.FC<GeoMapProps> = ({ ips, className }) => {
   const [hoveredIp, setHoveredIp] = useState<IPRecord | null>(null);
 
-  // Filter IPs with valid latitude & longitude
-  const geoIps = (ips || []).filter(
-    (item) => item.geo && typeof item.geo.latitude === 'number' && typeof item.geo.longitude === 'number'
+  const ipList = Array.isArray(ips) ? ips : [];
+
+  // Filter IPs with valid, finite, numeric latitude & longitude
+  const geoIps = ipList.filter(
+    (item) => 
+      item?.geo &&
+      typeof item.geo.latitude === 'number' &&
+      !isNaN(item.geo.latitude) &&
+      isFinite(item.geo.latitude) &&
+      typeof item.geo.longitude === 'number' &&
+      !isNaN(item.geo.longitude) &&
+      isFinite(item.geo.longitude)
   );
 
   // Convert lat/long to SVG Equirectangular coordinates (width 800, height 400)
@@ -22,9 +31,11 @@ export const GeoMap: React.FC<GeoMapProps> = ({ ips = [], className }) => {
 
   const projectCoord = (lat: number, lon: number) => {
     // x ranges from -180 to 180 -> 0 to 800
-    const x = ((lon + 180) / 360) * mapWidth;
+    const clampedLon = Math.max(-180, Math.min(180, lon));
+    const clampedLat = Math.max(-90, Math.min(90, lat));
+    const x = ((clampedLon + 180) / 360) * mapWidth;
     // y ranges from 90 to -90 -> 0 to 400
-    const y = ((90 - lat) / 180) * mapHeight;
+    const y = ((90 - clampedLat) / 180) * mapHeight;
     return { x, y };
   };
 
@@ -143,7 +154,7 @@ export const GeoMap: React.FC<GeoMapProps> = ({ ips = [], className }) => {
 
               return (
                 <g
-                  key={`marker-${node.ip}-${i}`}
+                  key={`marker-${node.ip || i}-${i}`}
                   className="cursor-pointer transition-transform"
                   onMouseEnter={() => setHoveredIp(node)}
                   onMouseLeave={() => setHoveredIp(null)}
@@ -208,18 +219,20 @@ export const GeoMap: React.FC<GeoMapProps> = ({ ips = [], className }) => {
                 <span>{hoveredIp.ip}</span>
               </div>
               <div className="text-slate-300 text-[11px]">
-                {hoveredIp.geo.city ? `${hoveredIp.geo.city}, ` : ''}
-                {hoveredIp.geo.region ? `${hoveredIp.geo.region}, ` : ''}
-                {hoveredIp.geo.country || 'UNAVAILABLE'} ({hoveredIp.geo.country_code || '--'})
+                {hoveredIp.geo?.city ? `${hoveredIp.geo.city}, ` : ''}
+                {hoveredIp.geo?.region ? `${hoveredIp.geo.region}, ` : ''}
+                {hoveredIp.geo?.country || 'UNAVAILABLE'} ({hoveredIp.geo?.country_code || '--'})
               </div>
               {hoveredIp.asn?.organization && (
                 <div className="text-slate-400 text-[10px]">
                   ASN: {hoveredIp.asn.asn} ({hoveredIp.asn.organization})
                 </div>
               )}
-              <div className="text-[9px] text-slate-500">
-                Coords: {hoveredIp.geo.latitude?.toFixed(4)}, {hoveredIp.geo.longitude?.toFixed(4)}
-              </div>
+              {typeof hoveredIp.geo?.latitude === 'number' && typeof hoveredIp.geo?.longitude === 'number' && (
+                <div className="text-[9px] text-slate-500">
+                  Coords: {hoveredIp.geo.latitude.toFixed(4)}, {hoveredIp.geo.longitude.toFixed(4)}
+                </div>
+              )}
             </div>
           )}
 

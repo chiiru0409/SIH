@@ -52,16 +52,19 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const rawNodes = graph?.nodes || [];
-  const rawEdges = graph?.edges || [];
+  const rawNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+  const rawEdges = Array.isArray(graph?.edges) ? graph.edges : [];
 
   // Filter nodes by type
   const filteredNodes = useMemo(() => {
     return rawNodes.filter((node) => {
+      if (!node) return false;
       const matchesType = activeFilter === 'ALL' || node.type === activeFilter;
+      const label = String(node.label || '');
+      const id = String(node.id || '');
       const matchesSearch = !searchQuery || 
-        node.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        node.id.toLowerCase().includes(searchQuery.toLowerCase());
+        label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        id.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesType && matchesSearch;
     });
   }, [rawNodes, activeFilter, searchQuery]);
@@ -70,7 +73,7 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
 
   const visibleEdges = useMemo(() => {
     return rawEdges.filter(
-      (edge) => activeNodeIds.has(edge.source) && activeNodeIds.has(edge.target)
+      (edge) => edge && activeNodeIds.has(edge.source) && activeNodeIds.has(edge.target)
     );
   }, [rawEdges, activeNodeIds]);
 
@@ -85,20 +88,29 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
     const centerX = width / 2;
     const centerY = height / 2;
 
+    // Single node center special-case
+    if (total === 1) {
+      positions[filteredNodes[0].id] = { x: centerX, y: centerY };
+      return positions;
+    }
+
     // Group nodes by type for organized clustering
     const typeGroups: Record<string, GraphNode[]> = {};
     filteredNodes.forEach(node => {
+      if (!node) return;
       typeGroups[node.type] = typeGroups[node.type] || [];
       typeGroups[node.type].push(node);
     });
 
     const types = Object.keys(typeGroups);
     types.forEach((type, typeIdx) => {
-      const groupNodes = typeGroups[type];
+      const groupNodes = typeGroups[type] || [];
+      if (groupNodes.length === 0) return;
       const radius = 100 + typeIdx * 45;
-      const angleStep = (2 * Math.PI) / groupNodes.length;
+      const angleStep = groupNodes.length > 0 ? (2 * Math.PI) / groupNodes.length : 0;
 
       groupNodes.forEach((node, nodeIdx) => {
+        if (!node) return;
         const angle = nodeIdx * angleStep + (typeIdx * 0.4);
         positions[node.id] = {
           x: centerX + radius * Math.cos(angle),

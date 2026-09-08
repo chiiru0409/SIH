@@ -25,7 +25,9 @@ export const ForensicEvidencePanel: React.FC<ForensicEvidencePanelProps> = ({
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
   const [filterType, setFilterType] = useState<'ALL' | 'FACT' | 'INFERENCE'>('ALL');
 
-  if (!forensics || !forensics.findings || forensics.findings.length === 0) {
+  const findings = Array.isArray(forensics?.findings) ? forensics.findings : [];
+
+  if (findings.length === 0) {
     return (
       <Card title="FORENSIC EVIDENCE & FINDINGS" className={className}>
         <div className="py-8 text-center text-xs font-mono text-slate-500">
@@ -35,14 +37,14 @@ export const ForensicEvidencePanel: React.FC<ForensicEvidencePanelProps> = ({
     );
   }
 
-  const findings = forensics.findings;
-  const factsCount = forensics.summary?.facts_count || findings.filter(f => f.type === 'FACT').length;
-  const inferencesCount = forensics.summary?.inferences_count || findings.filter(f => f.type === 'INFERENCE').length;
+  const factsCount = forensics?.summary?.facts_count ?? findings.filter(f => f?.type === 'FACT').length;
+  const inferencesCount = forensics?.summary?.inferences_count ?? findings.filter(f => f?.type === 'INFERENCE').length;
 
-  // Extract unique categories
-  const categories = ['ALL', ...Array.from(new Set(findings.map(f => f.category)))];
+  // Extract unique valid categories
+  const categories = ['ALL', ...Array.from(new Set(findings.map(f => f?.category).filter(Boolean)))];
 
   const filteredFindings = findings.filter(f => {
+    if (!f) return false;
     const matchesCategory = activeCategory === 'ALL' || f.category === activeCategory;
     const matchesType = filterType === 'ALL' || f.type === filterType;
     return matchesCategory && matchesType;
@@ -119,7 +121,7 @@ export const ForensicEvidencePanel: React.FC<ForensicEvidencePanelProps> = ({
 
               return (
                 <div
-                  key={`${finding.title}-${idx}`}
+                  key={`${finding.title || 'finding'}-${idx}`}
                   className={`p-4 rounded-lg border transition-all ${
                     isFact
                       ? 'bg-cyber-surface/70 border-emerald-500/20 hover:border-emerald-500/40'
@@ -129,21 +131,21 @@ export const ForensicEvidencePanel: React.FC<ForensicEvidencePanelProps> = ({
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-cyber-border/40">
                     <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                       <span className="font-mono text-xs font-bold text-slate-100">
-                        {finding.title}
+                        {finding.title || 'Unspecified Observation'}
                       </span>
                       {isFact ? (
                         <Badge variant="fact" size="sm" />
                       ) : (
                         <Badge variant="inference" size="sm" />
                       )}
-                      <Badge variant="severity" severity={finding.severity} size="sm" />
+                      <Badge variant="severity" severity={finding.severity || 'LOW'} size="sm" />
                     </div>
 
                     <div className="flex items-center space-x-2 text-[10px] font-mono text-slate-400">
                       <span className="bg-slate-800 px-2 py-0.5 rounded border border-slate-700 uppercase">
-                        {finding.category}
+                        {finding.category || 'GENERAL'}
                       </span>
-                      {finding.confidence && (
+                      {typeof finding.confidence === 'number' && (
                         <span className="text-cyan-400">
                           {Math.round(finding.confidence * 100)}% CONF
                         </span>
@@ -152,7 +154,7 @@ export const ForensicEvidencePanel: React.FC<ForensicEvidencePanelProps> = ({
                   </div>
 
                   <p className="text-xs text-slate-300 mt-2 leading-relaxed font-sans">
-                    {finding.description}
+                    {finding.description || '(No description provided)'}
                   </p>
 
                   {finding.evidence && (

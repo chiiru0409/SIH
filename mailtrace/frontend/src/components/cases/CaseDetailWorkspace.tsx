@@ -55,21 +55,34 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
   const [isHeadersModalOpen, setIsHeadersModalOpen] = useState(false);
 
   const copyToClipboard = (text: string, field: string) => {
+    if (!text) return;
     navigator.clipboard.writeText(text);
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  const parsed = caseData.parsed_email || {};
-  const headers = parsed.headers || {};
-  const sender = parsed.sender || {};
-  const recips = parsed.recipients || {};
-  const auth = parsed.authentication || {};
-  const relay = parsed.received_chain || {};
-  const indicators = parsed.indicators || {};
-  const risk = caseData.risk_reasons || {
-    risk_score: caseData.risk_score || 0,
-    severity: caseData.risk_label || 'LOW',
+  const caseId = caseData?.case_id || '';
+  const originalFilename = caseData?.original_filename || 'unknown.eml';
+  const riskLabel = caseData?.risk_label || 'LOW';
+
+  const parsed = caseData?.parsed_email || (caseData as any)?.email_analysis?.parsed_email || {};
+  const headers = parsed?.headers || parsed || {};
+  const sender = parsed?.sender || {
+    email: parsed?.from_address || parsed?.from || null,
+    display_name: parsed?.from_display_name || parsed?.from_display || null,
+    domain: parsed?.from_domain || (typeof parsed?.from_address === 'string' ? parsed.from_address.split('@')[1] : null),
+  };
+  const recips = parsed?.recipients || {
+    to: parsed?.to_addresses || parsed?.to || [],
+    cc: parsed?.cc_addresses || parsed?.cc || [],
+  };
+  const auth = parsed?.authentication || parsed?.authentication_results || {};
+  const relay = parsed?.received_chain || parsed?.routing_hops || parsed?.smtp_trace || {};
+  const indicators = parsed?.indicators || {};
+
+  const risk = caseData?.risk_reasons || (caseData as any)?.email_analysis?.risk_assessment || (caseData as any)?.risk_assessment || {
+    risk_score: caseData?.risk_score ?? 0,
+    severity: riskLabel,
     risk_factors: [],
     category_scores: {},
     top_factors: [],
@@ -78,16 +91,42 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
     limitations: [],
   };
 
-  const rawHeaders = parsed.raw_headers || {};
-  const emailHtml = parsed.html_body ? sanitizeHtml(parsed.html_body) : null;
-  const emailText = parsed.body || '';
+  const forensicAnalysis = caseData?.forensic_analysis || (caseData as any)?.email_analysis?.forensic_analysis || null;
+  const threatAnalysis = caseData?.ai_analysis || (caseData as any)?.threat_analysis || (caseData as any)?.email_analysis?.threat_analysis || null;
+  const ipIntel = caseData?.ip_intel || (caseData as any)?.infrastructure || (caseData as any)?.email_analysis?.infrastructure || { ips: [] };
+  const domainIntel = caseData?.domain_intel || (caseData as any)?.infrastructure || (caseData as any)?.email_analysis?.infrastructure || { domains: [] };
+  const urlIntel = caseData?.url_intel || (caseData as any)?.infrastructure || (caseData as any)?.email_analysis?.infrastructure || { urls: [] };
+
+  const toRecipients = Array.isArray(recips.to)
+    ? recips.to.map((r: any) => (typeof r === 'string' ? r : r?.address || r?.email || '')).filter(Boolean)
+    : typeof recips.to === 'string' ? [recips.to] : [];
+
+  const ccRecipients = Array.isArray(recips.cc)
+    ? recips.cc.map((r: any) => (typeof r === 'string' ? r : r?.address || r?.email || '')).filter(Boolean)
+    : typeof recips.cc === 'string' ? [recips.cc] : [];
+
+  const rawHeaders = parsed.raw_headers && typeof parsed.raw_headers === 'object' 
+    ? parsed.raw_headers 
+    : typeof parsed.raw_headers === 'string' 
+    ? { 'Raw Headers': parsed.raw_headers }
+    : {};
+  const emailHtml = parsed.html_body || parsed.body_html ? sanitizeHtml(parsed.html_body || parsed.body_html) : null;
+  const emailText = parsed.body || parsed.body_plain || '';
+
+  const findingsCount = Array.isArray(forensicAnalysis?.findings) 
+    ? forensicAnalysis.findings.length 
+    : 0;
+
+  const graphNodesCount = Array.isArray(correlationData?.graph?.nodes) 
+    ? correlationData.graph.nodes.length 
+    : 0;
 
   const tabs = [
     { id: 'overview', label: 'Executive Summary', icon: <ShieldAlert className="w-3.5 h-3.5" /> },
-    { id: 'forensics', label: 'Deep Forensics', count: caseData.forensic_analysis?.findings?.length, icon: <Search className="w-3.5 h-3.5" /> },
+    { id: 'forensics', label: 'Deep Forensics', count: findingsCount, icon: <Search className="w-3.5 h-3.5" /> },
     { id: 'threat', label: 'Threat Intelligence', icon: <Code className="w-3.5 h-3.5" /> },
     { id: 'infrastructure', label: 'Infrastructure & Geo', icon: <Compass className="w-3.5 h-3.5" /> },
-    { id: 'graph', label: 'Investigation Graph', count: correlationData?.graph?.nodes?.length, icon: <Network className="w-3.5 h-3.5" /> },
+    { id: 'graph', label: 'Investigation Graph', count: graphNodesCount, icon: <Network className="w-3.5 h-3.5" /> },
     { id: 'integrity', label: 'Evidence Integrity', icon: <ShieldCheck className="w-3.5 h-3.5" /> },
     { id: 'raw_email', label: 'Email Content', icon: <Mail className="w-3.5 h-3.5" /> },
   ];
@@ -110,8 +149,8 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
               >
                 Back to Cases
               </Button>
-              <Badge variant="severity" severity={caseData.risk_label || 'LOW'} />
-              {caseData.campaign_id && (
+              <Badge variant="severity" severity={riskLabel} />
+              {caseData?.campaign_id && (
                 <span className="px-2 py-0.5 rounded bg-purple-950/60 border border-purple-500/40 text-purple-300 font-mono text-[10px] font-bold">
                   CAMPAIGN: {caseData.campaign_id}
                 </span>
@@ -120,12 +159,12 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
 
             <div>
               <h1 className="text-xl sm:text-2xl font-mono font-extrabold text-slate-100 flex items-center gap-2">
-                <span>CASE: {caseData.original_filename}</span>
+                <span>CASE: {originalFilename}</span>
               </h1>
               <div className="flex items-center space-x-3 text-xs font-mono text-slate-400 mt-1">
-                <span>SUBJECT: <strong className="text-slate-200">{headers.subject || '(No Subject)'}</strong></span>
+                <span>SUBJECT: <strong className="text-slate-200">{headers?.subject || parsed?.subject || '(No Subject)'}</strong></span>
                 <span>•</span>
-                <span>INGESTED: {formatDate(caseData.created_at)}</span>
+                <span>INGESTED: {caseData?.created_at ? formatDate(caseData.created_at) : 'RECENT'}</span>
               </div>
             </div>
           </div>
@@ -133,21 +172,23 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
           {/* Quick Copy Identifiers & Actions */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
             {/* Case ID Copy */}
-            <button
-              onClick={() => copyToClipboard(caseData.case_id, 'case_id')}
-              className="px-3 py-1.5 rounded bg-cyber-bg border border-cyber-border hover:border-cyber-cyan/50 text-slate-300 font-mono text-[11px] flex items-center justify-between space-x-2 transition"
-              title="Copy full Case UUID"
-            >
-              <span>ID: {caseData.case_id.slice(0, 8)}…</span>
-              {copiedField === 'case_id' ? (
-                <Check className="w-3.5 h-3.5 text-emerald-400" />
-              ) : (
-                <Copy className="w-3.5 h-3.5 text-slate-500" />
-              )}
-            </button>
+            {caseId && (
+              <button
+                onClick={() => copyToClipboard(caseId, 'case_id')}
+                className="px-3 py-1.5 rounded bg-cyber-bg border border-cyber-border hover:border-cyber-cyan/50 text-slate-300 font-mono text-[11px] flex items-center justify-between space-x-2 transition"
+                title="Copy full Case UUID"
+              >
+                <span>ID: {caseId.slice(0, 8)}…</span>
+                {copiedField === 'case_id' ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5 text-slate-500" />
+                )}
+              </button>
+            )}
 
             {/* SHA-256 Copy */}
-            {caseData.evidence_hash && (
+            {caseData?.evidence_hash && (
               <button
                 onClick={() => copyToClipboard(caseData.evidence_hash!, 'hash')}
                 className="px-3 py-1.5 rounded bg-cyber-bg border border-cyber-border hover:border-cyber-cyan/50 text-slate-300 font-mono text-[11px] flex items-center justify-between space-x-2 transition"
@@ -192,22 +233,22 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
           {/* Top Row: Risk Hero + Threat Panel */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <RiskScoreHero riskAssessment={risk as any} />
-            <ThreatClassificationPanel threatAnalysis={caseData.ai_analysis} />
+            <ThreatClassificationPanel threatAnalysis={threatAnalysis} />
           </div>
 
           {/* Second Row: Top Risk Factors + Auth Matrix */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <RiskFactorsList factors={risk.top_factors || risk.risk_factors || []} />
+            <RiskFactorsList factors={risk.top_factors?.length ? risk.top_factors : (risk.risk_factors || [])} />
             <AuthenticationMatrix
               auth={auth}
               alignment={{
-                spf_aligned: parsed.authentication?.spf?.aligned,
-                dkim_aligned: parsed.authentication?.dkim?.aligned,
-                dmarc_aligned: parsed.authentication?.dmarc?.aligned,
-                dmarc_pass: parsed.authentication?.dmarc?.status === 'pass',
-                header_from_domain: sender.domain,
-                envelope_from_domain: parsed.return_path?.domain,
-                dkim_domain: parsed.authentication?.dkim?.domain,
+                spf_aligned: parsed?.authentication?.spf?.aligned,
+                dkim_aligned: parsed?.authentication?.dkim?.aligned,
+                dmarc_aligned: parsed?.authentication?.dmarc?.aligned,
+                dmarc_pass: parsed?.authentication?.dmarc?.status === 'pass',
+                header_from_domain: sender?.domain,
+                envelope_from_domain: parsed?.return_path?.domain,
+                dkim_domain: parsed?.authentication?.dkim?.domain,
               }}
             />
           </div>
@@ -216,25 +257,25 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <IdentityInspector
               email={{
-                from: sender.email,
-                from_display: sender.display_name,
-                to: (recips.to || []).map((r: any) => r.email),
-                cc: (recips.cc || []).map((r: any) => r.email),
-                subject: headers.subject,
-                date: headers.date_iso || headers.date_raw,
-                message_id: headers.message_id,
-                reply_to: parsed.reply_to?.email,
-                return_path: parsed.return_path?.email,
+                from: sender?.email || null,
+                from_display: sender?.display_name || null,
+                to: toRecipients,
+                cc: ccRecipients,
+                subject: headers?.subject || null,
+                date: headers?.date_iso || headers?.date_raw || null,
+                message_id: headers?.message_id || null,
+                reply_to: parsed?.reply_to?.email || null,
+                return_path: parsed?.return_path?.email || null,
               }}
-              flags={indicators.flags}
+              flags={indicators?.flags}
             />
             <RelayTimeline
               smtpTrace={{
-                hop_count: relay.hop_count || 0,
-                received_chain: relay.chain || [],
-                public_ips: relay.public_ips_observed || [],
-                earliest_node: relay.earliest_observed_node,
-                confidence_note: relay.confidence_note,
+                hop_count: relay?.hop_count || 0,
+                received_chain: relay?.chain || [],
+                public_ips: relay?.public_ips_observed || [],
+                earliest_node: relay?.earliest_observed_node || null,
+                confidence_note: relay?.confidence_note,
               }}
             />
           </div>
@@ -244,40 +285,40 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
       {/* TAB 2: DEEP FORENSICS */}
       {activeTab === 'forensics' && (
         <div className="space-y-6">
-          <ForensicEvidencePanel forensics={caseData.forensic_analysis} />
+          <ForensicEvidencePanel forensics={forensicAnalysis} />
           <AuthenticationMatrix
             auth={auth}
             alignment={{
-              spf_aligned: parsed.authentication?.spf?.aligned,
-              dkim_aligned: parsed.authentication?.dkim?.aligned,
-              dmarc_aligned: parsed.authentication?.dmarc?.aligned,
-              dmarc_pass: parsed.authentication?.dmarc?.status === 'pass',
-              header_from_domain: sender.domain,
-              envelope_from_domain: parsed.return_path?.domain,
-              dkim_domain: parsed.authentication?.dkim?.domain,
+              spf_aligned: parsed?.authentication?.spf?.aligned,
+              dkim_aligned: parsed?.authentication?.dkim?.aligned,
+              dmarc_aligned: parsed?.authentication?.dmarc?.aligned,
+              dmarc_pass: parsed?.authentication?.dmarc?.status === 'pass',
+              header_from_domain: sender?.domain,
+              envelope_from_domain: parsed?.return_path?.domain,
+              dkim_domain: parsed?.authentication?.dkim?.domain,
             }}
           />
           <IdentityInspector
             email={{
-              from: sender.email,
-              from_display: sender.display_name,
-              to: (recips.to || []).map((r: any) => r.email),
-              cc: (recips.cc || []).map((r: any) => r.email),
-              subject: headers.subject,
-              date: headers.date_iso || headers.date_raw,
-              message_id: headers.message_id,
-              reply_to: parsed.reply_to?.email,
-              return_path: parsed.return_path?.email,
+              from: sender?.email || null,
+              from_display: sender?.display_name || null,
+              to: toRecipients,
+              cc: ccRecipients,
+              subject: headers?.subject || null,
+              date: headers?.date_iso || headers?.date_raw || null,
+              message_id: headers?.message_id || null,
+              reply_to: parsed?.reply_to?.email || null,
+              return_path: parsed?.return_path?.email || null,
             }}
-            flags={indicators.flags}
+            flags={indicators?.flags}
           />
           <RelayTimeline
             smtpTrace={{
-              hop_count: relay.hop_count || 0,
-              received_chain: relay.chain || [],
-              public_ips: relay.public_ips_observed || [],
-              earliest_node: relay.earliest_observed_node,
-              confidence_note: relay.confidence_note,
+              hop_count: relay?.hop_count || 0,
+              received_chain: relay?.chain || [],
+              public_ips: relay?.public_ips_observed || [],
+              earliest_node: relay?.earliest_observed_node || null,
+              confidence_note: relay?.confidence_note,
             }}
           />
         </div>
@@ -286,21 +327,21 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
       {/* TAB 3: THREAT INTELLIGENCE */}
       {activeTab === 'threat' && (
         <div className="space-y-6">
-          <ThreatClassificationPanel threatAnalysis={caseData.ai_analysis} />
-          <RiskFactorsList factors={risk.top_factors || risk.risk_factors || []} />
+          <ThreatClassificationPanel threatAnalysis={threatAnalysis} />
+          <RiskFactorsList factors={risk.top_factors?.length ? risk.top_factors : (risk.risk_factors || [])} />
         </div>
       )}
 
       {/* TAB 4: INFRASTRUCTURE & GEO */}
       {activeTab === 'infrastructure' && (
         <div className="space-y-6">
-          <GeoMap ips={caseData.ip_intel?.ips || []} />
+          <GeoMap ips={ipIntel?.ips || []} />
           <InfrastructurePanel
             infrastructure={{
-              summary: caseData.ip_intel?.summary || {},
-              ips: caseData.ip_intel?.ips || [],
-              domains: caseData.domain_intel?.domains || [],
-              urls: caseData.url_intel?.urls || [],
+              summary: ipIntel?.summary || {},
+              ips: ipIntel?.ips || [],
+              domains: domainIntel?.domains || [],
+              urls: urlIntel?.urls || [],
               limitations: [],
             }}
           />
@@ -312,7 +353,7 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
         <div className="space-y-6">
           <InvestigationGraphView
             graph={correlationData?.graph || { nodes: [], edges: [] }}
-            selectedCaseId={caseData.case_id}
+            selectedCaseId={caseId}
             onSelectCase={onSelectRelatedCase}
           />
         </div>
@@ -321,8 +362,8 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
       {/* TAB 6: EVIDENCE INTEGRITY & BLOCKCHAIN ANCHORING */}
       {activeTab === 'integrity' && (
         <EvidenceIntegrityPanel
-          caseId={caseData.case_id}
-          initialEvidenceHash={caseData.evidence_hash}
+          caseId={caseId}
+          initialEvidenceHash={caseData?.evidence_hash}
         />
       )}
 
@@ -357,7 +398,7 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
         isOpen={isHeadersModalOpen}
         onClose={() => setIsHeadersModalOpen(false)}
         title="RFC 5322 RAW HEADER AUDIT"
-        subtitle={`Case ID: ${caseData.case_id}`}
+        subtitle={`Case ID: ${caseId}`}
         maxWidth="4xl"
       >
         <div className="space-y-4">

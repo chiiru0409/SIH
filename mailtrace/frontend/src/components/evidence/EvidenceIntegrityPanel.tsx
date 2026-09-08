@@ -233,11 +233,13 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
                 </>
               )}
             </div>
-            <ul className="list-disc list-inside space-y-1 text-slate-300 pl-1">
-              {verification.details.map((d, i) => (
-                <li key={i}>{d}</li>
-              ))}
-            </ul>
+            {Array.isArray(verification.details) && verification.details.length > 0 && (
+              <ul className="list-disc list-inside space-y-1 text-slate-300 pl-1">
+                {verification.details.map((d, i) => (
+                  <li key={i}>{d}</li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
@@ -403,7 +405,7 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
 
           <div className="space-y-3 relative before:absolute before:inset-0 before:left-3.5 before:w-0.5 before:bg-cyber-border before:z-0">
             {events.map((ev, idx) => (
-              <div key={ev.id || idx} className="relative z-10 flex items-start space-x-3 text-xs font-mono">
+              <div key={`event-${ev.id || idx}-${idx}`} className="relative z-10 flex items-start space-x-3 text-xs font-mono">
                 <div className="w-7 h-7 rounded-full bg-cyber-bg border border-cyber-cyan/50 flex items-center justify-center shrink-0 text-[11px] font-bold text-cyber-cyan">
                   {idx + 1}
                 </div>

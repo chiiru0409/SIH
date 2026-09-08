@@ -22,8 +22,14 @@ export const AuthenticationMatrix: React.FC<AuthenticationMatrixProps> = ({
   alignment,
   className,
 }) => {
-  const getStatusBadge = (status?: string | null) => {
-    const s = (status || 'UNKNOWN').toUpperCase();
+  const getStatusBadge = (status?: any) => {
+    let s = 'UNKNOWN';
+    if (typeof status === 'string') {
+      s = status.toUpperCase();
+    } else if (status && typeof status === 'object') {
+      s = String(status.result || status.status || status.verdict || status.value || 'UNKNOWN').toUpperCase();
+    }
+
     if (s === 'PASS') {
       return {
         label: 'PASS',

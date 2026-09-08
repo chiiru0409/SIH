@@ -9,8 +9,10 @@ export interface RiskFactorsListProps {
   className?: string;
 }
 
-export const RiskFactorsList: React.FC<RiskFactorsListProps> = ({ factors = [], className }) => {
-  if (!factors || factors.length === 0) {
+export const RiskFactorsList: React.FC<RiskFactorsListProps> = ({ factors, className }) => {
+  const factorsList = Array.isArray(factors) ? factors : [];
+
+  if (factorsList.length === 0) {
     return (
       <Card title="RANKED RISK FACTORS" subtitle="No elevated risk triggers identified in this email" className={className}>
         <div className="p-6 text-center text-xs font-mono text-emerald-400 bg-emerald-950/20 rounded-lg border border-emerald-500/20">
@@ -21,7 +23,7 @@ export const RiskFactorsList: React.FC<RiskFactorsListProps> = ({ factors = [], 
   }
 
   // Sort descending by points
-  const sortedFactors = [...factors].sort((a, b) => (b.points || 0) - (a.points || 0));
+  const sortedFactors = [...factorsList].sort((a, b) => (b?.points || 0) - (a?.points || 0));
 
   return (
     <Card
@@ -32,12 +34,16 @@ export const RiskFactorsList: React.FC<RiskFactorsListProps> = ({ factors = [], 
     >
       <div className="space-y-3">
         {sortedFactors.map((item, index) => {
+          if (!item) return null;
           const rank = String(index + 1).padStart(2, '0');
           const pts = item.points || 0;
+          const factorName = item.factor || 'Unspecified Indicator';
+          const category = item.category || 'general';
+          const severity = item.severity || 'LOW';
 
           return (
             <div
-              key={`${item.factor}-${index}`}
+              key={`${factorName}-${index}`}
               className="p-3.5 rounded-lg bg-cyber-surface/70 border border-cyber-border hover:border-cyber-borderLight transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
             >
               {/* Rank & Title */}
@@ -48,11 +54,11 @@ export const RiskFactorsList: React.FC<RiskFactorsListProps> = ({ factors = [], 
                 <div className="overflow-hidden">
                   <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                     <span className="font-mono text-xs font-bold text-slate-200">
-                      {item.factor}
+                      {factorName}
                     </span>
-                    <Badge variant="severity" severity={item.severity} size="sm" />
+                    <Badge variant="severity" severity={severity} size="sm" />
                     <span className="text-[10px] font-mono uppercase bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">
-                      {item.category}
+                      {category}
                     </span>
                   </div>
                   {item.evidence && (
