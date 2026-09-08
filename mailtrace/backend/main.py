@@ -43,28 +43,31 @@ logger = logging.getLogger("mailtrace")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ---- Startup ----
-    logger.info("=" * 60)
-    logger.info(f"  {settings.APP_NAME} v{settings.APP_VERSION}  [{settings.APP_ENV}]")
-    logger.info("=" * 60)
-
-    # Ensure upload and report directories exist in local dev (safely ignored in serverless)
-    if not os.getenv("VERCEL") and not os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
-        for directory in (settings.UPLOAD_DIR, settings.REPORT_DIR):
-            try:
-                Path(directory).mkdir(parents=True, exist_ok=True)
-                logger.debug(f"  Directory ready: {directory}")
-            except Exception as exc:
-                logger.debug(f"  Directory check notice for {directory}: {exc}")
-
-    # Initialize database tables
-    logger.info("  Initializing database …")
     try:
-        await init_db()
-        logger.info(f"  Database connected: {mask_database_url(ACTIVE_DATABASE_URL)}")
-    except Exception as exc:
-        logger.error(f"  Database initialization warning: {exc}")
-    logger.info("  Startup complete. MAILTRACE is ready.")
-    logger.info("=" * 60)
+        logger.info("=" * 60)
+        logger.info(f"  {settings.APP_NAME} v{settings.APP_VERSION}  [{settings.APP_ENV}]")
+        logger.info("=" * 60)
+
+        # Ensure upload and report directories exist in local dev (safely ignored in serverless)
+        if not os.getenv("VERCEL") and not os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+            for directory in (settings.UPLOAD_DIR, settings.REPORT_DIR):
+                try:
+                    Path(directory).mkdir(parents=True, exist_ok=True)
+                    logger.debug(f"  Directory ready: {directory}")
+                except Exception as exc:
+                    logger.debug(f"  Directory check notice for {directory}: {exc}")
+
+        # Initialize database tables
+        logger.info("  Initializing database …")
+        try:
+            await init_db()
+            logger.info(f"  Database connected: {mask_database_url(ACTIVE_DATABASE_URL)}")
+        except Exception as exc:
+            logger.error(f"  Database initialization warning: {exc}")
+        logger.info("  Startup complete. MAILTRACE is ready.")
+        logger.info("=" * 60)
+    except Exception as startup_err:
+        logger.error(f"Unexpected error in lifespan startup: {startup_err}", exc_info=True)
 
     yield  # Application is running
 
