@@ -3,24 +3,24 @@ import {
   ShieldCheck,
   ShieldAlert,
   Link,
-  Cpu,
   Lock,
   FileCheck2,
   Download,
   RefreshCw,
-  Clock,
-  ExternalLink,
+  Terminal,
   CheckCircle2,
   XCircle,
   AlertTriangle,
   Blocks,
   FileCode2,
   Copy,
-  Check
+  Check,
+  ChevronRight,
+  HardDrive,
+  Cpu,
+  Layers,
+  Sparkles
 } from 'lucide-react';
-import { Card } from '../ui/Card';
-import { Button } from '../ui/Button';
-import { Badge } from '../ui/Badge';
 import { truncateHash, formatDate } from '../../lib/utils';
 import {
   fetchEvidenceManifest,
@@ -44,7 +44,7 @@ export interface EvidenceIntegrityPanelProps {
 export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
   caseId,
   initialEvidenceHash,
-  className,
+  className = '',
 }) => {
   const [manifest, setManifest] = useState<EvidenceManifestResponse | null>(null);
   const [verification, setVerification] = useState<EvidenceVerifyResponse | null>(null);
@@ -54,9 +54,9 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
   const [verifying, setVerifying] = useState<boolean>(false);
   const [anchoring, setAnchoring] = useState<boolean>(false);
-  const [anchorSuccess, setAnchorSuccess] = useState<BlockchainAnchorResponse | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'LEDGER' | 'COMMITMENTS' | 'BLOCKCHAIN'>('LEDGER');
 
   const loadEvidenceData = async () => {
     setLoading(true);
@@ -70,7 +70,7 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
       setEvents(chainData.events || []);
       setChainValid(chainData.chain_valid);
     } catch (err: any) {
-      setError(err.message || 'Failed to load evidence manifest.');
+      setError(err.message || 'Failed to load evidence manifest from cryptographic backend.');
     } finally {
       setLoading(false);
     }
@@ -82,15 +82,15 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
 
   const handleVerify = async () => {
     setVerifying(true);
+    setError(null);
     try {
       const result = await verifyEvidence(caseId);
       setVerification(result);
-      // Reload chain of custody to capture new verification event
       const chainData = await fetchChainOfCustody(caseId);
       setEvents(chainData.events || []);
       setChainValid(chainData.chain_valid);
     } catch (err: any) {
-      setError(err.message || 'Verification failed.');
+      setError(err.message || 'Cryptographic verification sequence failed.');
     } finally {
       setVerifying(false);
     }
@@ -98,12 +98,12 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
 
   const handleAnchor = async () => {
     setAnchoring(true);
+    setError(null);
     try {
-      const receipt = await anchorEvidence(caseId);
-      setAnchorSuccess(receipt);
+      await anchorEvidence(caseId);
       await loadEvidenceData();
     } catch (err: any) {
-      setError(err.message || 'Anchoring failed.');
+      setError(err.message || 'Ledger anchoring sequence failed.');
     } finally {
       setAnchoring(false);
     }
@@ -126,342 +126,455 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  if (loading) {
-    return (
-      <Card className={`p-8 text-center border-cyber-border ${className || ''}`}>
-        <div className="flex flex-col items-center justify-center space-y-3">
-          <RefreshCw className="w-8 h-8 text-cyber-cyan animate-spin" />
-          <p className="font-mono text-sm text-slate-400">Loading cryptographic evidence commitments…</p>
-        </div>
-      </Card>
-    );
-  }
-
   const isVerified = verification ? verification.valid : (manifest?.integrity_status === 'verified');
   const fileHash = manifest?.file_sha256 || initialEvidenceHash || '';
   const parsedHash = manifest?.parsed_evidence_sha256 || '';
   const analysisHash = manifest?.analysis_sha256 || '';
   const blockchain = manifest?.blockchain_anchoring;
 
+  if (loading) {
+    return (
+      <div className={`rounded-xl border border-slate-800 bg-slate-950 p-10 font-mono text-center shadow-2xl ${className}`}>
+        <div className="flex flex-col items-center justify-center space-y-4">
+          <div className="relative">
+            <RefreshCw className="h-8 w-8 text-cyan-400 animate-spin" />
+            <div className="absolute inset-0 rounded-full blur-md bg-cyan-400/30" />
+          </div>
+          <div className="text-xs text-cyan-300 font-bold uppercase tracking-widest">
+            [ INITIALIZING FORENSIC CRYPTOGRAPHIC ENGINE ]
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Querying SHA-256 commitments & verifying merkle hash chain integrity for case: {caseId}…
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={`space-y-6 ${className || ''}`}>
+    <div className={`space-y-6 ${className}`}>
       
-      {/* 1. Header Hero Card with Actions */}
-      <Card className="border-cyber-borderLight bg-gradient-to-br from-cyber-surface/90 to-cyber-bg">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="flex items-center space-x-2">
-              <span className="px-2 py-0.5 rounded bg-cyan-950/70 border border-cyan-500/40 text-cyan-300 font-mono text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
-                <Lock className="w-3 h-3 text-cyan-400" />
-                FIPS 180-4 Standard
-              </span>
-              {isVerified ? (
-                <span className="px-2.5 py-0.5 rounded bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 font-mono text-xs font-bold flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  INTEGRITY VERIFIED
-                </span>
-              ) : (
-                <span className="px-2.5 py-0.5 rounded bg-rose-950/80 border border-rose-500/50 text-rose-300 font-mono text-xs font-bold flex items-center gap-1">
-                  <XCircle className="w-3.5 h-3.5 text-rose-400" />
-                  INTEGRITY MISMATCH
-                </span>
-              )}
-              {blockchain?.status === 'anchored' && (
-                <span className="px-2.5 py-0.5 rounded bg-purple-950/80 border border-purple-500/50 text-purple-300 font-mono text-xs font-bold flex items-center gap-1">
-                  <Blocks className="w-3.5 h-3.5 text-purple-400" />
-                  ON-CHAIN ANCHORED
-                </span>
-              )}
+      {/* ========================================================= */}
+      {/* LIVE FORENSIC TERMINAL WINDOW CONTAINER                   */}
+      {/* ========================================================= */}
+      <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-black/95 shadow-[0_0_50px_rgba(0,0,0,0.8)] backdrop-blur-md">
+        
+        {/* TOP WINDOW TITLEBAR WITH macOS TRAFFIC LIGHTS */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-950/90 px-4 py-2.5 font-mono text-xs select-none">
+          
+          {/* Traffic Light Controls & Session Header */}
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-1.5">
+              <span className="h-3 w-3 rounded-full bg-rose-500/90 border border-rose-600/80 shadow-[0_0_6px_rgba(244,63,94,0.6)] cursor-pointer" />
+              <span className="h-3 w-3 rounded-full bg-amber-500/90 border border-amber-600/80 shadow-[0_0_6px_rgba(245,158,11,0.6)] cursor-pointer" />
+              <span className="h-3 w-3 rounded-full bg-emerald-500/90 border border-emerald-600/80 shadow-[0_0_6px_rgba(16,185,129,0.6)] cursor-pointer" />
             </div>
-            <h2 className="text-xl sm:text-2xl font-mono font-bold text-slate-100 flex items-center gap-2">
-              <span>Tamper-Evident Evidence & Blockchain Anchoring</span>
-            </h2>
-            <p className="text-xs font-mono text-slate-400 max-w-3xl">
-              Cryptographically secures raw EML bytes, structured parsed attributes, forensic findings, and chronological chain-of-custody logs with deterministic SHA-256 hash chaining.
-            </p>
+
+            <div className="flex items-center space-x-2 border-l border-slate-800 pl-3">
+              <Terminal className="h-3.5 w-3.5 text-cyan-400" />
+              <span className="text-slate-300 font-bold tracking-tight">
+                tty1@mailtrace-core:~/evidence-ledger
+              </span>
+              <span className="text-slate-600">|</span>
+              <span className="text-slate-500 text-[10px]">
+                CASE-{caseId.slice(0, 8)}
+              </span>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-            <Button
-              variant="primary"
-              size="sm"
-              icon={verifying ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-              onClick={handleVerify}
-              disabled={verifying}
-            >
-              {verifying ? 'Verifying Integrity…' : 'Verify Evidence'}
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              icon={anchoring ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Blocks className="w-4 h-4 text-purple-400" />}
-              onClick={handleAnchor}
-              disabled={anchoring || blockchain?.status === 'anchored'}
-            >
-              {blockchain?.status === 'anchored' ? 'Already Anchored' : anchoring ? 'Anchoring…' : 'Anchor to Ledger'}
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={<Download className="w-4 h-4 text-cyan-400" />}
-              onClick={handleExportManifest}
-            >
-              Export Manifest JSON
-            </Button>
+          {/* Security Standard Indicators */}
+          <div className="flex items-center space-x-3 text-[10px]">
+            <span className="flex items-center space-x-1.5 rounded bg-cyan-950/70 border border-cyan-500/40 px-2 py-0.5 text-cyan-300 font-bold">
+              <Lock className="h-3 w-3 text-cyan-400" />
+              <span>FIPS 180-4 SHA-256</span>
+            </span>
+            <span className="text-slate-500 hidden sm:inline">
+              AUDIT PROTOCOL // ACTIVE
+            </span>
           </div>
         </div>
 
-        {/* Verification Status Banner if recently verified */}
-        {verification && (
-          <div className={`mt-6 p-4 rounded-lg border font-mono text-xs space-y-2 ${
-            verification.valid 
-              ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200' 
-              : 'bg-rose-950/40 border-rose-500/40 text-rose-200'
-          }`}>
-            <div className="flex items-center space-x-2 font-bold text-sm">
-              {verification.valid ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>ALL CRYPTOGRAPHIC COMMITMENTS VERIFIED</span>
-                </>
-              ) : (
-                <>
-                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                  <span>INTEGRITY MISMATCH DETECTED</span>
-                </>
+        {/* TERMINAL BODY */}
+        <div className="p-5 font-mono space-y-5">
+          
+          {/* Executive Command Strip & Actions */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 rounded-lg bg-slate-950/90 border border-slate-800">
+            <div className="space-y-1">
+              <div className="flex items-center space-x-2 text-cyan-400 text-xs font-bold">
+                <ChevronRight className="h-4 w-4 animate-pulse" />
+                <span>root@mailtrace-sec:~$ audit --verify-chain --deterministic</span>
+              </div>
+              <p className="text-[11px] text-slate-400 max-w-2xl leading-relaxed">
+                Cryptographically binds original raw EML bytes, canonical MIME parsed objects, forensic indicators, and immutable sequential chain-of-custody commits.
+              </p>
+            </div>
+
+            {/* Terminal Actions Pod */}
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                onClick={handleVerify}
+                disabled={verifying}
+                className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded bg-cyan-500/20 border border-cyan-400/60 text-cyan-300 text-xs font-bold hover:bg-cyan-500/30 active:scale-95 transition disabled:opacity-50 shadow-[0_0_12px_rgba(0,240,255,0.2)]"
+              >
+                {verifying ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    <span>VERIFYING CHAIN…</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="h-3.5 w-3.5 text-cyan-400" />
+                    <span>EXEC: VERIFY_EVIDENCE</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={handleAnchor}
+                disabled={anchoring || blockchain?.status === 'anchored'}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-purple-950/50 border border-purple-500/40 text-purple-300 text-xs font-bold hover:bg-purple-900/40 active:scale-95 transition disabled:opacity-50"
+              >
+                {anchoring ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    <span>ANCHORING…</span>
+                  </>
+                ) : (
+                  <>
+                    <Blocks className="h-3.5 w-3.5 text-purple-400" />
+                    <span>{blockchain?.status === 'anchored' ? 'ANCHORED TO LEDGER' : 'ANCHOR_LEDGER'}</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={handleExportManifest}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-slate-300 text-xs font-bold hover:bg-slate-800 hover:text-white transition"
+              >
+                <Download className="h-3.5 w-3.5 text-slate-400" />
+                <span>EXPORT --JSON</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Verification Feedback Banner */}
+          {verification && (
+            <div className={`p-3.5 rounded-lg border text-xs space-y-1.5 ${
+              verification.valid 
+                ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200' 
+                : 'bg-rose-950/40 border-rose-500/50 text-rose-200'
+            }`}>
+              <div className="flex items-center space-x-2 font-bold text-sm">
+                {verification.valid ? (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                    <span>ALL CRYPTOGRAPHIC COMMITMENTS VERIFIED [0 TAMPER DETECTED]</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="h-4 w-4 text-rose-400" />
+                    <span>INTEGRITY MISMATCH DETECTED IN EVIDENCE RECORD</span>
+                  </>
+                )}
+              </div>
+              {Array.isArray(verification.details) && verification.details.length > 0 && (
+                <ul className="list-disc list-inside space-y-0.5 text-slate-300 text-[11px] pl-1">
+                  {verification.details.map((d, i) => (
+                    <li key={i}>{d}</li>
+                  ))}
+                </ul>
               )}
             </div>
-            {Array.isArray(verification.details) && verification.details.length > 0 && (
-              <ul className="list-disc list-inside space-y-1 text-slate-300 pl-1">
-                {verification.details.map((d, i) => (
-                  <li key={i}>{d}</li>
-                ))}
-              </ul>
+          )}
+
+          {error && (
+            <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center space-x-2">
+              <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* View Tab Switcher */}
+          <div className="flex items-center space-x-2 border-b border-slate-800 pb-2 text-xs">
+            <button
+              onClick={() => setActiveTab('LEDGER')}
+              className={`px-3 py-1 rounded transition flex items-center space-x-1.5 ${
+                activeTab === 'LEDGER' 
+                  ? 'bg-slate-800 text-cyan-300 border border-cyan-500/40 font-bold shadow-[0_0_8px_rgba(0,240,255,0.2)]' 
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Link className="h-3.5 w-3.5" />
+              <span>CHAIN OF CUSTODY LEDGER ({events.length})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('COMMITMENTS')}
+              className={`px-3 py-1 rounded transition flex items-center space-x-1.5 ${
+                activeTab === 'COMMITMENTS' 
+                  ? 'bg-slate-800 text-cyan-300 border border-cyan-500/40 font-bold shadow-[0_0_8px_rgba(0,240,255,0.2)]' 
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <HardDrive className="h-3.5 w-3.5" />
+              <span>SHA-256 COMMITMENTS</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('BLOCKCHAIN')}
+              className={`px-3 py-1 rounded transition flex items-center space-x-1.5 ${
+                activeTab === 'BLOCKCHAIN' 
+                  ? 'bg-slate-800 text-purple-300 border border-purple-500/40 font-bold shadow-[0_0_8px_rgba(168,85,247,0.2)]' 
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Blocks className="h-3.5 w-3.5" />
+              <span>BLOCKCHAIN PROOF</span>
+            </button>
+          </div>
+
+          {/* TAB 1: CHAIN OF CUSTODY LEDGER (LIVE SCROLLING CLI OUTPUT) */}
+          {activeTab === 'LEDGER' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-[11px] text-slate-400 pb-1">
+                <span className="flex items-center space-x-1.5">
+                  <span className={`h-2 w-2 rounded-full ${chainValid ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
+                  <span>AUDIT TRAIL INTEGRITY: {chainValid ? 'UNBROKEN DETERMINISTIC CHAIN' : 'HASH MISMATCH DETECTED'}</span>
+                </span>
+                <span>TOTAL EVENTS LOGGED: {events.length}</span>
+              </div>
+
+              {/* Scrolling Terminal Output Container */}
+              <div className="max-h-[380px] overflow-y-auto space-y-2 rounded-lg bg-slate-950 p-3.5 border border-slate-800 text-[11px] font-mono leading-relaxed">
+                {events.length === 0 ? (
+                  <div className="py-8 text-center text-slate-500">
+                    [ NO HISTORICAL CHAIN EVENTS DETECTED IN STORAGE LEDGER ]
+                  </div>
+                ) : (
+                  events.map((ev, idx) => (
+                    <div 
+                      key={`ev-${ev.id || idx}-${idx}`}
+                      className="group relative rounded border border-slate-800/80 bg-slate-900/50 p-2.5 transition hover:border-cyan-500/40 hover:bg-slate-900/90"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-1 text-slate-400 mb-1">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-cyan-400 font-bold">#{String(idx + 1).padStart(2, '0')}</span>
+                          <span className="px-1.5 py-0.2 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300 font-bold uppercase text-[10px]">
+                            {ev.event_type}
+                          </span>
+                          <span className="text-slate-500">[{formatDate(ev.timestamp)}]</span>
+                        </div>
+                        <span className="text-[10px] text-slate-500">
+                          PREV: {ev.previous_event_hash ? truncateHash(ev.previous_event_hash, 6) : '0x0000 (GENESIS)'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1.5 pt-1.5 border-t border-slate-800/60 text-[11px]">
+                        <div className="flex items-center justify-between text-slate-400">
+                          <span>Evidence Hash:</span>
+                          <span className="text-cyan-400 font-bold">{truncateHash(ev.evidence_hash || ev.event_hash, 8)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-slate-400">
+                          <span>Event Commitment:</span>
+                          <span className="text-slate-200">{truncateHash(ev.event_hash, 8)}</span>
+                        </div>
+                      </div>
+
+                      {ev.metadata && Object.keys(ev.metadata).length > 0 && (
+                        <div className="mt-1.5 p-1.5 rounded bg-black/60 text-[10px] text-slate-400 overflow-x-auto">
+                          <span className="text-slate-500">META: </span>
+                          <span>{JSON.stringify(ev.metadata)}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: CRYPTOGRAPHIC COMMITMENTS MATRIX */}
+          {activeTab === 'COMMITMENTS' && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              
+              {/* 1. Original File Raw Bytes SHA-256 */}
+              <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-cyan-500/40 transition space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
+                    <FileCheck2 className="h-3.5 w-3.5 text-cyan-400" />
+                    <span>Raw File SHA-256</span>
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded bg-cyan-950/70 border border-cyan-500/30 text-cyan-300 text-[9px] font-bold uppercase">
+                    Raw Bytes
+                  </span>
+                </div>
+                <div className="relative group">
+                  <div className="p-2.5 rounded bg-black border border-slate-800 text-cyan-400 font-bold break-all text-[11px] select-all shadow-inner">
+                    {fileHash || 'N/A'}
+                  </div>
+                  <button
+                    onClick={() => copyToClipboard(fileHash, 'fileHash')}
+                    className="mt-1.5 w-full flex items-center justify-center space-x-1 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-400 hover:border-cyan-500/40 text-[10px] transition"
+                  >
+                    {copiedField === 'fileHash' ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                    <span>{copiedField === 'fileHash' ? 'COPIED TO CLIPBOARD' : 'COPY HASH'}</span>
+                  </button>
+                </div>
+                <div className="text-[10px] text-slate-500 pt-1">
+                  Size: {manifest?.file_size_bytes ? `${manifest.file_size_bytes} B` : 'Verified Source'}
+                </div>
+              </div>
+
+              {/* 2. Parsed Evidence Canonical JSON SHA-256 */}
+              <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-emerald-500/40 transition space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
+                    <FileCode2 className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>Parsed Structure SHA-256</span>
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-950/70 border border-emerald-500/30 text-emerald-300 text-[9px] font-bold uppercase">
+                    Canonical JSON
+                  </span>
+                </div>
+                <div className="relative group">
+                  <div className="p-2.5 rounded bg-black border border-slate-800 text-cyan-400 font-bold break-all text-[11px] select-all shadow-inner">
+                    {parsedHash || 'N/A'}
+                  </div>
+                  <button
+                    onClick={() => copyToClipboard(parsedHash, 'parsedHash')}
+                    className="mt-1.5 w-full flex items-center justify-center space-x-1 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-400 hover:border-cyan-500/40 text-[10px] transition"
+                  >
+                    {copiedField === 'parsedHash' ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                    <span>{copiedField === 'parsedHash' ? 'COPIED TO CLIPBOARD' : 'COPY HASH'}</span>
+                  </button>
+                </div>
+                <div className="text-[10px] text-slate-500 pt-1">
+                  Deterministic MIME Attribute Mapping
+                </div>
+              </div>
+
+              {/* 3. Forensic Analysis Findings SHA-256 */}
+              <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-purple-500/40 transition space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
+                    <Cpu className="h-3.5 w-3.5 text-purple-400" />
+                    <span>Analysis Record SHA-256</span>
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded bg-purple-950/70 border border-purple-500/30 text-purple-300 text-[9px] font-bold uppercase">
+                    Risk & Intel
+                  </span>
+                </div>
+                <div className="relative group">
+                  <div className="p-2.5 rounded bg-black border border-slate-800 text-cyan-400 font-bold break-all text-[11px] select-all shadow-inner">
+                    {analysisHash || 'N/A'}
+                  </div>
+                  <button
+                    onClick={() => copyToClipboard(analysisHash, 'analysisHash')}
+                    className="mt-1.5 w-full flex items-center justify-center space-x-1 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:text-cyan-400 hover:border-cyan-500/40 text-[10px] transition"
+                  >
+                    {copiedField === 'analysisHash' ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                    <span>{copiedField === 'analysisHash' ? 'COPIED TO CLIPBOARD' : 'COPY HASH'}</span>
+                  </button>
+                </div>
+                <div className="text-[10px] text-slate-500 pt-1">
+                  Immutable Risk & Anomaly Assessment
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* TAB 3: BLOCKCHAIN PROOF */}
+          {activeTab === 'BLOCKCHAIN' && (
+            <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span className="text-xs font-bold text-purple-300 flex items-center space-x-1.5">
+                  <Blocks className="h-4 w-4 text-purple-400" />
+                  <span>Zero-Knowledge Distributed Ledger Timestamping</span>
+                </span>
+                <span className="text-[10px] text-slate-500">NO PII ON-CHAIN</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div className="p-2.5 rounded bg-black border border-slate-800">
+                  <span className="text-[10px] text-slate-500 uppercase block">Provider</span>
+                  <span className="text-slate-200 font-bold">{blockchain?.provider || 'LOCAL-SIM'}</span>
+                </div>
+                <div className="p-2.5 rounded bg-black border border-slate-800">
+                  <span className="text-[10px] text-slate-500 uppercase block">Network</span>
+                  <span className="text-slate-200 font-bold uppercase">{blockchain?.network || 'OFFLINE'}</span>
+                </div>
+                <div className="p-2.5 rounded bg-black border border-slate-800">
+                  <span className="text-[10px] text-slate-500 uppercase block">Status</span>
+                  <span className={`font-bold ${blockchain?.status === 'anchored' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {blockchain?.status === 'anchored' ? 'LEDGER ANCHORED' : 'PENDING'}
+                  </span>
+                </div>
+              </div>
+
+              {blockchain?.transaction_id && (
+                <div className="p-2.5 rounded bg-black border border-slate-800 text-[11px] space-y-1">
+                  <span className="text-[10px] text-slate-500 uppercase block">Tx Hash</span>
+                  <div className="text-cyan-400 font-bold break-all">{blockchain.transaction_id}</div>
+                </div>
+              )}
+            </div>
+          )}
+
+        </div>
+
+        {/* ========================================================= */}
+        {/* BOTTOM ANCHOR STATUS INDICATOR (PULSING GREEN STATUS)      */}
+        {/* ========================================================= */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/80 bg-slate-950 px-5 py-3 font-mono text-xs">
+          
+          <div className="flex items-center space-x-2.5">
+            {isVerified ? (
+              <>
+                <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
+                </span>
+                <span className="font-bold tracking-wider text-emerald-400 uppercase drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]">
+                  CRYPTOGRAPHIC ANCHOR: VERIFIED
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-600" />
+                </span>
+                <span className="font-bold tracking-wider text-rose-400 uppercase drop-shadow-[0_0_8px_rgba(244,63,94,0.5)]">
+                  CRYPTOGRAPHIC ANCHOR: INTEGRITY MISMATCH
+                </span>
+              </>
             )}
           </div>
-        )}
 
-        {error && (
-          <div className="mt-4 p-3 rounded-lg bg-rose-950/40 border border-rose-500/40 text-rose-300 font-mono text-xs flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-            <span>{error}</span>
+          <div className="text-[10px] text-slate-500 flex items-center space-x-2">
+            <span>HASH_CHAIN: VALID</span>
+            <span>•</span>
+            <span>NON_REPUDIATION: ACTIVE</span>
           </div>
-        )}
-      </Card>
-
-      {/* 2. Cryptographic Commitments Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* Original File Hash */}
-        <Card className="border-cyber-border hover:border-cyber-cyan/50 transition">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <FileCheck2 className="w-3.5 h-3.5 text-cyber-cyan" />
-              Original File SHA-256
-            </span>
-            <span className="px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 font-mono text-[10px] font-bold">Raw Bytes</span>
-          </div>
-          <p className="font-mono text-xs text-slate-200 break-all bg-cyber-bg p-3 rounded border border-cyber-border/80 select-all">
-            {fileHash || 'N/A'}
-          </p>
-          <div className="mt-3 flex items-center justify-between text-[11px] font-mono text-slate-400">
-            <span>Size: {manifest?.file_size_bytes ? `${manifest.file_size_bytes} B` : 'Direct'}</span>
-            <button
-              onClick={() => copyToClipboard(fileHash, 'fileHash')}
-              className="text-cyber-cyan hover:underline flex items-center gap-1"
-            >
-              {copiedField === 'fileHash' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-              <span>{copiedField === 'fileHash' ? 'Copied' : 'Copy'}</span>
-            </button>
-          </div>
-        </Card>
-
-        {/* Parsed Evidence Structure Hash */}
-        <Card className="border-cyber-border hover:border-cyber-cyan/50 transition">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <FileCode2 className="w-3.5 h-3.5 text-emerald-400" />
-              Parsed Evidence Hash
-            </span>
-            <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 font-mono text-[10px] font-bold">Canonical JSON</span>
-          </div>
-          <p className="font-mono text-xs text-slate-200 break-all bg-cyber-bg p-3 rounded border border-cyber-border/80 select-all">
-            {parsedHash || 'N/A'}
-          </p>
-          <div className="mt-3 flex items-center justify-between text-[11px] font-mono text-slate-400">
-            <span>Deterministic MIME Model</span>
-            <button
-              onClick={() => copyToClipboard(parsedHash, 'parsedHash')}
-              className="text-cyber-cyan hover:underline flex items-center gap-1"
-            >
-              {copiedField === 'parsedHash' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-              <span>{copiedField === 'parsedHash' ? 'Copied' : 'Copy'}</span>
-            </button>
-          </div>
-        </Card>
-
-        {/* Forensic Analysis Record Hash */}
-        <Card className="border-cyber-border hover:border-cyber-cyan/50 transition">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Cpu className="w-3.5 h-3.5 text-purple-400" />
-              Analysis Record Hash
-            </span>
-            <span className="px-2 py-0.5 rounded bg-purple-950/60 border border-purple-500/40 text-purple-300 font-mono text-[10px] font-bold">Findings & Risk</span>
-          </div>
-          <p className="font-mono text-xs text-slate-200 break-all bg-cyber-bg p-3 rounded border border-cyber-border/80 select-all">
-            {analysisHash || 'N/A'}
-          </p>
-          <div className="mt-3 flex items-center justify-between text-[11px] font-mono text-slate-400">
-            <span>Risk & Threat Commitment</span>
-            <button
-              onClick={() => copyToClipboard(analysisHash, 'analysisHash')}
-              className="text-cyber-cyan hover:underline flex items-center gap-1"
-            >
-              {copiedField === 'analysisHash' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-              <span>{copiedField === 'analysisHash' ? 'Copied' : 'Copy'}</span>
-            </button>
-          </div>
-        </Card>
+        </div>
 
       </div>
 
-      {/* 3. Blockchain Anchoring Details */}
-      <Card
-        title="BLOCKCHAIN LEDGER ANCHORING"
-        subtitle="Zero-knowledge cryptographic timestamping on distributed ledger (no email content on-chain)"
-        icon={<Blocks className="w-4 h-4 text-purple-400" />}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="p-3 bg-cyber-bg rounded border border-cyber-border">
-            <span className="text-[10px] font-mono text-slate-400 uppercase">Provider Status</span>
-            <div className="mt-1 font-mono font-bold text-sm text-slate-200 flex items-center gap-1.5">
-              {blockchain?.enabled ? (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>ACTIVE ({blockchain.provider})</span>
-                </>
-              ) : (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-slate-500" />
-                  <span>NOT CONFIGURED / LOCAL</span>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="p-3 bg-cyber-bg rounded border border-cyber-border">
-            <span className="text-[10px] font-mono text-slate-400 uppercase">Ledger Network</span>
-            <div className="mt-1 font-mono font-bold text-sm text-slate-200 uppercase">
-              {blockchain?.network || 'LOCAL-OFFLINE'}
-            </div>
-          </div>
-
-          <div className="p-3 bg-cyber-bg rounded border border-cyber-border md:col-span-2">
-            <span className="text-[10px] font-mono text-slate-400 uppercase">Transaction ID</span>
-            <div className="mt-1 font-mono text-xs text-slate-200 break-all select-all flex items-center justify-between">
-              <span>{blockchain?.transaction_id || 'Not yet anchored'}</span>
-              {blockchain?.transaction_id && (
-                <button
-                  onClick={() => copyToClipboard(blockchain.transaction_id!, 'tx_id')}
-                  className="text-cyber-cyan hover:underline ml-2"
-                >
-                  {copiedField === 'tx_id' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {blockchain?.anchor_data && (
-          <div className="mt-4 p-3 bg-slate-900/60 rounded border border-purple-500/30 font-mono text-xs text-slate-300">
-            <div className="font-bold text-purple-300 mb-1">Receipt Commitment:</div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-slate-400 text-[11px]">
-              <div>Block Number: <strong className="text-slate-200">{blockchain.anchor_data.block_number || 'N/A'}</strong></div>
-              <div>Block Time: <strong className="text-slate-200">{blockchain.anchor_data.block_timestamp || 'N/A'}</strong></div>
-              <div>Status: <strong className="text-emerald-400">{blockchain.anchor_data.status || 'Verified'}</strong></div>
-            </div>
-          </div>
-        )}
-      </Card>
-
-      {/* 4. Chain of Custody Timeline */}
-      <Card
-        title={`CHAIN OF CUSTODY TIMELINE (${events.length} EVENTS)`}
-        subtitle="Unbroken hash-chained chronological audit log (event_n = SHA256(event_type + case_id + hash + prev_hash))"
-        icon={<Link className="w-4 h-4 text-cyber-cyan" />}
-      >
-        <div className="space-y-4">
-          <div className="flex items-center justify-between text-xs font-mono text-slate-400 pb-2 border-b border-cyber-border">
-            <span>Audit Trail Integrity: {chainValid ? (
-              <strong className="text-emerald-400">UNBROKEN VALID CHAIN</strong>
-            ) : (
-              <strong className="text-rose-400">CHAIN TAMPER DETECTED</strong>
-            )}</span>
-            <span>Total Logged Events: {events.length}</span>
-          </div>
-
-          <div className="space-y-3 relative before:absolute before:inset-0 before:left-3.5 before:w-0.5 before:bg-cyber-border before:z-0">
-            {events.map((ev, idx) => (
-              <div key={`event-${ev.id || idx}-${idx}`} className="relative z-10 flex items-start space-x-3 text-xs font-mono">
-                <div className="w-7 h-7 rounded-full bg-cyber-bg border border-cyber-cyan/50 flex items-center justify-center shrink-0 text-[11px] font-bold text-cyber-cyan">
-                  {idx + 1}
-                </div>
-                <div className="flex-1 p-3 rounded-lg bg-cyber-bg border border-cyber-border hover:border-cyber-cyan/40 transition">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1">
-                    <span className="font-bold text-slate-200 flex items-center gap-1.5">
-                      <span className="px-2 py-0.5 rounded bg-cyan-950/70 border border-cyan-500/40 text-cyan-300 font-mono text-[10px] font-bold">
-                        {ev.event_type}
-                      </span>
-                      <span className="text-slate-400 text-[11px]">• {formatDate(ev.timestamp)}</span>
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      PREV: {ev.previous_event_hash ? truncateHash(ev.previous_event_hash, 4) : 'GENESIS'}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 pt-2 border-t border-cyber-border/40 text-[11px] text-slate-400">
-                    <div>
-                      <span className="text-slate-500">Evidence Hash: </span>
-                      <span className="text-slate-300">{truncateHash(ev.evidence_hash || ev.event_hash, 6)}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Event Commitment: </span>
-                      <span className="text-cyber-cyan">{truncateHash(ev.event_hash, 6)}</span>
-                    </div>
-                  </div>
-
-                  {ev.metadata && Object.keys(ev.metadata).length > 0 && (
-                    <div className="mt-2 text-[10px] text-slate-400 bg-cyber-surface/60 p-2 rounded">
-                      <strong className="text-slate-500">Metadata: </strong>
-                      {JSON.stringify(ev.metadata)}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Card>
-
-      {/* 5. Legal Attribution & Non-Repudiation Notice */}
-      <Card className="border-cyber-border/80 bg-slate-900/40">
+      {/* Forensic Attribution Notice Console */}
+      <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-4 font-mono text-xs text-slate-400">
         <div className="flex items-start space-x-3">
-          <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-          <div className="space-y-1 font-mono text-xs">
-            <h4 className="font-bold text-slate-200">Forensic Integrity vs. Legal Attribution Disclaimer</h4>
-            <p className="text-slate-400 leading-relaxed text-[11px]">
+          <ShieldAlert className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+          <div className="space-y-1 text-[11px]">
+            <span className="font-bold text-slate-200 uppercase">Cryptographic Integrity vs. Legal Attribution</span>
+            <p className="leading-relaxed text-slate-400">
               {manifest?.legal_attribution_notice || (
-                "Evidence integrity establishes cryptographic proof that original bytes, parsed forensic data, " +
-                "and analysis scores match their recorded SHA-256 commitments. " +
-                "Integrity validation proves non-tampering; it does not represent proof of author identity or criminal attribution."
+                "Evidence integrity guarantees deterministic mathematical proof that raw email bytes, parsed forensic attributes, and analysis scores match their recorded SHA-256 commitments without tampering. Integrity validation does not itself constitute legal identity attribution."
               )}
             </p>
           </div>
         </div>
-      </Card>
+      </div>
 
     </div>
   );

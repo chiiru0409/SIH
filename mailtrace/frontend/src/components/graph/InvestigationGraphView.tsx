@@ -1,20 +1,22 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useId } from 'react';
 import { 
   Network, 
   ZoomIn, 
   ZoomOut, 
-  Maximize2, 
-  Filter, 
+  RotateCcw, 
   Search, 
-  Info, 
   X, 
   Layers, 
-  RotateCcw,
-  Sparkles
+  Radio,
+  Copy,
+  Check,
+  Radar,
+  ArrowRight,
+  ShieldAlert,
+  Compass,
+  Cpu,
+  ExternalLink
 } from 'lucide-react';
-import { Card } from '../ui/Card';
-import { Badge } from '../ui/Badge';
-import { Button } from '../ui/Button';
 import type { InvestigationGraph, GraphNode, GraphEdge, NodeType } from '../../types/api';
 
 export interface InvestigationGraphViewProps {
@@ -24,38 +26,114 @@ export interface InvestigationGraphViewProps {
   className?: string;
 }
 
-// Node Type Styling Configuration
-const NODE_CONFIG: Record<NodeType, { color: string; stroke: string; label: string; bg: string }> = {
-  CASE: { color: '#6366f1', stroke: '#818cf8', label: 'Case', bg: 'bg-indigo-950/60' },
-  EMAIL: { color: '#06b6d4', stroke: '#22d3ee', label: 'Email', bg: 'bg-cyan-950/60' },
-  SENDER: { color: '#f59e0b', stroke: '#fbbf24', label: 'Sender', bg: 'bg-amber-950/60' },
-  DOMAIN: { color: '#3b82f6', stroke: '#60a5fa', label: 'Domain', bg: 'bg-blue-950/60' },
-  URL: { color: '#f43f5e', stroke: '#fb7185', label: 'URL', bg: 'bg-rose-950/60' },
-  IP: { color: '#a855f7', stroke: '#c084fc', label: 'IP Address', bg: 'bg-purple-950/60' },
-  ASN: { color: '#10b981', stroke: '#34d399', label: 'ASN', bg: 'bg-emerald-950/60' },
-  CAMPAIGN: { color: '#ef4444', stroke: '#f87171', label: 'Campaign', bg: 'bg-red-950/60' },
+// ------------------------------------------------------------------ //
+//  Cytoscape Visual Stylesheet Specification                         //
+// ------------------------------------------------------------------ //
+export const CYTOSCAPE_STYLESHEET = [
+  {
+    selector: 'node',
+    style: {
+      'background-color': '#0f172a',
+      'border-width': 2,
+      'border-color': '#38bdf8',
+      'label': 'data(label)',
+      'color': '#cbd5e1',
+      'font-family': 'ui-monospace, monospace',
+      'font-size': '10px',
+      'text-valign': 'bottom',
+      'text-margin-y': 6,
+    },
+  },
+  {
+    selector: 'node[type = "IP"]',
+    style: { 'border-color': '#00f0ff', 'background-color': '#0f172a' },
+  },
+  {
+    selector: 'node[type = "URL"]',
+    style: { 'border-color': '#f43f5e', 'background-color': '#0f172a' },
+  },
+  {
+    selector: 'node[type = "DOMAIN"]',
+    style: { 'border-color': '#38bdf8', 'background-color': '#0f172a' },
+  },
+  {
+    selector: 'node[type = "SENDER"]',
+    style: { 'border-color': '#fbbf24', 'background-color': '#0f172a' },
+  },
+  {
+    selector: 'node[type = "EMAIL"]',
+    style: { 'border-color': '#22d3ee', 'background-color': '#0f172a' },
+  },
+  {
+    selector: 'node[type = "CASE"]',
+    style: { 'border-color': '#818cf8', 'background-color': '#0f172a', 'width': 34, 'height': 34 },
+  },
+  {
+    selector: 'node[type = "ASN"]',
+    style: { 'border-color': '#34d399', 'background-color': '#0f172a' },
+  },
+  {
+    selector: 'node[type = "CAMPAIGN"]',
+    style: { 'border-color': '#ef4444', 'background-color': '#0f172a', 'width': 38, 'height': 38 },
+  },
+  {
+    selector: 'edge',
+    style: {
+      'width': 1.5,
+      'line-color': '#38bdf8',
+      'opacity': 0.6,
+      'target-arrow-color': '#38bdf8',
+      'target-arrow-shape': 'triangle',
+      'curve-style': 'bezier',
+    },
+  },
+  {
+    selector: 'node:selected',
+    style: {
+      'border-width': 3,
+      'border-color': '#00f0ff',
+      'shadow-blur': 16,
+      'shadow-color': '#00f0ff',
+    },
+  },
+];
+
+// Node Type Visual & SOC Taxonomy Mapping
+const NODE_CONFIG: Record<NodeType, { color: string; glow: string; label: string; bg: string }> = {
+  CASE: { color: '#818cf8', glow: 'rgba(129, 140, 248, 0.7)', label: 'Case', bg: 'bg-indigo-950/70 border-indigo-500/40 text-indigo-300' },
+  EMAIL: { color: '#22d3ee', glow: 'rgba(34, 211, 238, 0.7)', label: 'Email', bg: 'bg-cyan-950/70 border-cyan-500/40 text-cyan-300' },
+  SENDER: { color: '#fbbf24', glow: 'rgba(251, 191, 36, 0.7)', label: 'Sender', bg: 'bg-amber-950/70 border-amber-500/40 text-amber-300' },
+  DOMAIN: { color: '#38bdf8', glow: 'rgba(56, 189, 248, 0.7)', label: 'Domain', bg: 'bg-sky-950/70 border-sky-500/40 text-sky-300' },
+  URL: { color: '#f43f5e', glow: 'rgba(244, 63, 94, 0.8)', label: 'URL / Malicious Link', bg: 'bg-rose-950/70 border-rose-500/40 text-rose-300' },
+  IP: { color: '#00f0ff', glow: 'rgba(0, 240, 255, 0.8)', label: 'IP Address', bg: 'bg-cyan-950/70 border-cyan-500/40 text-cyan-300' },
+  ASN: { color: '#34d399', glow: 'rgba(52, 211, 153, 0.7)', label: 'ASN / BGP Routing', bg: 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300' },
+  CAMPAIGN: { color: '#ef4444', glow: 'rgba(239, 68, 68, 0.8)', label: 'Cluster Campaign', bg: 'bg-red-950/70 border-red-500/40 text-red-300' },
 };
 
 export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
   graph,
   selectedCaseId,
   onSelectCase,
-  className,
+  className = '',
 }) => {
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [radarSweeping, setRadarSweeping] = useState<boolean>(true);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [copiedValue, setCopiedValue] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const arrowMarkerId = useId();
+  const arrowSelectedId = useId();
 
   const rawNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   const rawEdges = Array.isArray(graph?.edges) ? graph.edges : [];
 
-  // Filter nodes by type
+  // Filter nodes by type & search criteria
   const filteredNodes = useMemo(() => {
     return rawNodes.filter((node) => {
       if (!node) return false;
@@ -77,24 +155,23 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
     );
   }, [rawEdges, activeNodeIds]);
 
-  // Layout node positions in circular / layered grid
+  // Dynamic layout positioning in tactical concentric cluster
   const nodePositions = useMemo(() => {
     const positions: Record<string, { x: number; y: number }> = {};
     const total = filteredNodes.length;
     if (total === 0) return positions;
 
-    const width = 800;
-    const height = 500;
+    const width = 860;
+    const height = 540;
     const centerX = width / 2;
     const centerY = height / 2;
 
-    // Single node center special-case
     if (total === 1) {
       positions[filteredNodes[0].id] = { x: centerX, y: centerY };
       return positions;
     }
 
-    // Group nodes by type for organized clustering
+    // Group nodes by entity type for organized tactical rings
     const typeGroups: Record<string, GraphNode[]> = {};
     filteredNodes.forEach(node => {
       if (!node) return;
@@ -106,12 +183,14 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
     types.forEach((type, typeIdx) => {
       const groupNodes = typeGroups[type] || [];
       if (groupNodes.length === 0) return;
-      const radius = 100 + typeIdx * 45;
+      
+      // Radius rings from 110px outwards
+      const radius = 110 + typeIdx * 48;
       const angleStep = groupNodes.length > 0 ? (2 * Math.PI) / groupNodes.length : 0;
 
       groupNodes.forEach((node, nodeIdx) => {
         if (!node) return;
-        const angle = nodeIdx * angleStep + (typeIdx * 0.4);
+        const angle = nodeIdx * angleStep + (typeIdx * 0.45);
         positions[node.id] = {
           x: centerX + radius * Math.cos(angle),
           y: centerY + radius * Math.sin(angle),
@@ -122,7 +201,7 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
     return positions;
   }, [filteredNodes]);
 
-  // Pan handlers
+  // Pan & Zoom controls
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
     setIsDragging(true);
@@ -145,136 +224,157 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
     setSelectedNode(null);
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedValue(text);
+    setTimeout(() => setCopiedValue(null), 2000);
+  };
+
   if (!graph || rawNodes.length === 0) {
     return (
-      <Card title="INVESTIGATION RELATIONSHIP GRAPH" className={className}>
-        <div className="py-12 text-center text-xs font-mono text-slate-500 space-y-2">
-          <Network className="w-8 h-8 text-slate-600 mx-auto" />
-          <div>NO GRAPH RELATIONSHIPS AVAILABLE</div>
-          <p className="text-[11px] text-slate-600">
-            Upload email cases to build and correlate entity relationship graphs.
+      <div className={`relative overflow-hidden rounded-xl border border-slate-800 bg-slate-950/90 p-6 backdrop-blur-md shadow-2xl ${className}`}>
+        <div className="flex items-center space-x-2 border-b border-slate-800/80 pb-3 font-mono text-xs text-slate-400">
+          <Network className="h-4 w-4 text-cyan-400" />
+          <span className="font-bold tracking-wider text-slate-200 uppercase">INVESTIGATION RELATIONSHIP GRAPH</span>
+          <span className="text-slate-600">|</span>
+          <span className="text-slate-500">Multi-Case NetworkX Relationship Topology</span>
+        </div>
+        <div className="py-16 text-center font-mono text-xs text-slate-500 space-y-3">
+          <Radar className="h-10 w-10 text-slate-700 mx-auto animate-pulse" />
+          <div className="text-slate-400 font-bold uppercase tracking-widest">
+            NO GRAPH RELATIONSHIPS AVAILABLE
+          </div>
+          <p className="text-[11px] text-slate-600 max-w-sm mx-auto">
+            Upload email cases into the forensic engine to construct cross-entity correlation graphs.
           </p>
         </div>
-      </Card>
+      </div>
     );
   }
 
   return (
-    <Card
-      title="INVESTIGATION RELATIONSHIP GRAPH"
-      subtitle={`Multi-case NetworkX relationship topology (${rawNodes.length} entities, ${rawEdges.length} connections)`}
-      icon={<Network className="w-4 h-4 text-cyber-cyan" />}
-      className={className}
-    >
-      <div className="space-y-4">
-        
-        {/* Controls Toolbar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 bg-cyber-surface rounded-lg border border-cyber-border">
-          
-          {/* Node Type Filters */}
-          <div className="flex items-center space-x-1 overflow-x-auto max-w-full pb-1 sm:pb-0">
-            <button
-              onClick={() => setActiveFilter('ALL')}
-              className={`px-2.5 py-1 rounded text-[10px] font-mono whitespace-nowrap transition ${
-                activeFilter === 'ALL'
-                  ? 'bg-cyber-card text-cyber-cyan border border-cyber-cyan/40 font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              ALL ({rawNodes.length})
-            </button>
-            {(Object.keys(NODE_CONFIG) as NodeType[]).map((t) => {
-              const count = rawNodes.filter(n => n.type === t).length;
-              if (count === 0) return null;
-              return (
-                <button
-                  key={t}
-                  onClick={() => setActiveFilter(t)}
-                  className={`px-2 py-1 rounded text-[10px] font-mono whitespace-nowrap flex items-center space-x-1 transition ${
-                    activeFilter === t
-                      ? 'bg-cyber-card text-white border border-cyber-cyan/40 font-bold'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <span
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: NODE_CONFIG[t].color }}
-                  />
-                  <span>{t}</span>
-                  <span className="text-[9px] text-slate-500">({count})</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Search & Zoom Controls */}
-          <div className="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end">
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2" />
-              <input
-                type="text"
-                placeholder="Search nodes…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 pr-3 py-1 bg-cyber-bg border border-cyber-border rounded text-xs font-mono text-slate-200 placeholder:text-slate-500 w-36 focus:w-48 transition-all focus:outline-none focus:border-cyber-cyan"
-              />
-            </div>
-
-            <div className="flex items-center space-x-1 border-l border-cyber-border pl-2">
-              <button
-                onClick={() => setZoom(z => Math.min(2.5, z + 0.2))}
-                className="p-1 rounded bg-slate-800 text-slate-300 hover:text-white"
-                title="Zoom In"
-              >
-                <ZoomIn className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => setZoom(z => Math.max(0.4, z - 0.2))}
-                className="p-1 rounded bg-slate-800 text-slate-300 hover:text-white"
-                title="Zoom Out"
-              >
-                <ZoomOut className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={handleResetView}
-                className="p-1 rounded bg-slate-800 text-slate-300 hover:text-white"
-                title="Reset View"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-
+    <div className={`relative overflow-hidden rounded-xl border border-slate-800 bg-slate-950/95 shadow-2xl backdrop-blur-md transition-all ${className}`}>
+      
+      {/* Top Header Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 bg-slate-900/60 px-5 py-3 font-mono text-xs">
+        <div className="flex items-center space-x-2.5">
+          <Network className="h-4 w-4 text-cyan-400 animate-pulse" />
+          <span className="font-bold tracking-wider text-slate-100 uppercase">INVESTIGATION RELATIONSHIP GRAPH</span>
+          <span className="text-slate-600">|</span>
+          <span className="text-[11px] text-slate-400">Multi-case NetworkX relationship topology ({rawNodes.length} entities, {rawEdges.length} connections)</span>
         </div>
+        
+        <div className="flex items-center space-x-3 text-[11px]">
+          <button
+            onClick={() => setRadarSweeping(!radarSweeping)}
+            className={`flex items-center space-x-1.5 px-2.5 py-1 rounded border transition ${
+              radarSweeping 
+                ? 'border-cyan-500/40 bg-cyan-950/50 text-cyan-300 shadow-[0_0_10px_rgba(0,240,255,0.2)]' 
+                : 'border-slate-700 bg-slate-900 text-slate-400'
+            }`}
+          >
+            <Radar className={`h-3 w-3 ${radarSweeping ? 'text-cyan-400 animate-spin' : 'text-slate-500'}`} />
+            <span>RADAR SWEEP // {radarSweeping ? 'ACTIVE' : 'PAUSED'}</span>
+          </button>
+          
+          <span className="rounded border border-slate-700 bg-slate-900/90 px-2 py-1 font-bold text-slate-300">
+            NETWORKX_ENGINE_V2
+          </span>
+        </div>
+      </div>
 
-        {/* Interactive Graph Canvas Area */}
+      {/* Main Interactive Tactical Radar Canvas */}
+      <div className="p-4">
         <div
           ref={containerRef}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
-          className="relative w-full h-[500px] rounded-xl bg-cyber-bg border border-cyber-border overflow-hidden select-none cursor-grab active:cursor-grabbing"
+          className="relative h-[560px] w-full rounded-xl border border-slate-800 bg-slate-950 overflow-hidden select-none cursor-grab active:cursor-grabbing shadow-inner"
         >
-          {/* Subtle Grid Background */}
-          <div className="absolute inset-0 bg-cyber-grid bg-[size:20px_20px] opacity-30 pointer-events-none" />
+          {/* Military Cyber Grid Backdrop */}
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:24px_24px] opacity-70" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(6,182,212,0.06)_0%,transparent_70%)]" />
 
-          {/* SVG Graph Viewport */}
-          <svg
-            className="w-full h-full"
-            viewBox="0 0 800 500"
-          >
+          {/* Active Radar Sweep Beam (Rotating Conic Gradient) */}
+          {radarSweeping && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
+              <div 
+                className="h-[800px] w-[800px] rounded-full animate-[spin_8s_linear_infinite]"
+                style={{
+                  background: 'conic-gradient(from 0deg at 50% 50%, rgba(0, 240, 255, 0.15) 0deg, rgba(0, 240, 255, 0) 60deg, transparent 360deg)',
+                }}
+              />
+            </div>
+          )}
+
+          {/* SVG Canvas for Radar Reticles, Edges, and Nodes */}
+          <svg className="h-full w-full relative z-10" viewBox="0 0 860 540">
+            <defs>
+              {/* Directed Edge Arrowhead Markers */}
+              <marker
+                id={arrowMarkerId}
+                viewBox="0 0 10 10"
+                refX="22"
+                refY="5"
+                markerWidth="6"
+                markerHeight="6"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" fillOpacity="0.8" />
+              </marker>
+
+              <marker
+                id={arrowSelectedId}
+                viewBox="0 0 10 10"
+                refX="22"
+                refY="5"
+                markerWidth="8"
+                markerHeight="8"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#00f0ff" />
+              </marker>
+
+              {/* Node Drop Shadow Laser Glow */}
+              <filter id="nodeGlow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="4" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+
+            {/* Static Tactical Radar Range Rings & Crosshairs */}
+            <g className="pointer-events-none opacity-40">
+              <circle cx="430" cy="270" r="110" fill="none" stroke="#1e293b" strokeWidth="1" strokeDasharray="4 4" />
+              <circle cx="430" cy="270" r="170" fill="none" stroke="#1e293b" strokeWidth="1" strokeDasharray="4 4" />
+              <circle cx="430" cy="270" r="230" fill="none" stroke="#1e293b" strokeWidth="1" strokeDasharray="4 4" />
+              
+              {/* Center Crosshair Lines */}
+              <line x1="430" y1="20" x2="430" y2="520" stroke="#1e293b" strokeWidth="1" strokeDasharray="2 6" />
+              <line x1="20" y1="270" x2="840" y2="270" stroke="#1e293b" strokeWidth="1" strokeDasharray="2 6" />
+              
+              {/* Tactical Heading Indicators */}
+              <text x="430" y="32" fill="#475569" fontSize="9" fontFamily="monospace" textAnchor="middle">000° [N]</text>
+              <text x="830" y="273" fill="#475569" fontSize="9" fontFamily="monospace" textAnchor="end">090° [E]</text>
+              <text x="430" y="525" fill="#475569" fontSize="9" fontFamily="monospace" textAnchor="middle">180° [S]</text>
+              <text x="30" y="273" fill="#475569" fontSize="9" fontFamily="monospace" textAnchor="start">270° [W]</text>
+            </g>
+
+            {/* Dynamic Graph Group with Pan & Zoom */}
             <g
               transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}
               className="transition-transform duration-75"
             >
-              {/* Render Edges */}
+              {/* 1. Render Directed Edges */}
               {visibleEdges.map((edge, idx) => {
                 const srcPos = nodePositions[edge.source];
                 const tgtPos = nodePositions[edge.target];
                 if (!srcPos || !tgtPos) return null;
 
-                const isConnectedToSelected = selectedNode && 
-                  (selectedNode.id === edge.source || selectedNode.id === edge.target);
+                const isConnected = selectedNode && (selectedNode.id === edge.source || selectedNode.id === edge.target);
 
                 return (
                   <g key={`edge-${edge.source}-${edge.target}-${idx}`}>
@@ -283,21 +383,25 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
                       y1={srcPos.y}
                       x2={tgtPos.x}
                       y2={tgtPos.y}
-                      stroke={isConnectedToSelected ? '#00f0ff' : '#1e2d4a'}
-                      strokeWidth={isConnectedToSelected ? 2 : 1}
+                      stroke={isConnected ? '#00f0ff' : '#38bdf8'}
+                      strokeWidth={isConnected ? 2.5 : 1.2}
+                      strokeOpacity={isConnected ? 1 : selectedNode ? 0.15 : 0.55}
                       strokeDasharray={edge.relationship === 'CORRELATED_WITH' ? '4 3' : undefined}
-                      opacity={selectedNode && !isConnectedToSelected ? 0.2 : 0.8}
+                      markerEnd={`url(#${isConnected ? arrowSelectedId : arrowMarkerId})`}
+                      className="transition-all duration-300"
                     />
-                    {/* Relationship label */}
-                    {isConnectedToSelected && (
+                    
+                    {/* Relationship floating text */}
+                    {isConnected && (
                       <text
                         x={(srcPos.x + tgtPos.x) / 2}
-                        y={(srcPos.y + tgtPos.y) / 2 - 4}
+                        y={(srcPos.y + tgtPos.y) / 2 - 6}
                         fill="#00f0ff"
-                        fontSize="8"
+                        fontSize="8.5"
                         fontFamily="monospace"
+                        fontWeight="bold"
                         textAnchor="middle"
-                        className="pointer-events-none"
+                        className="pointer-events-none drop-shadow-[0_0_6px_rgba(0,240,255,0.8)]"
                       >
                         {edge.relationship}
                       </text>
@@ -306,7 +410,7 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
                 );
               })}
 
-              {/* Render Nodes */}
+              {/* 2. Render Graph Nodes */}
               {filteredNodes.map((node) => {
                 const pos = nodePositions[node.id];
                 if (!pos) return null;
@@ -314,6 +418,7 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
                 const config = NODE_CONFIG[node.type] || NODE_CONFIG.CASE;
                 const isSelected = selectedNode?.id === node.id;
                 const isCaseMatch = selectedCaseId && node.id.includes(selectedCaseId);
+                const isHubNode = node.type === 'CASE' || node.type === 'CAMPAIGN';
 
                 return (
                   <g
@@ -328,46 +433,48 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
                     }}
                     className="cursor-pointer group"
                   >
-                    {/* Selection Ring */}
+                    {/* Active Target Lock Ping */}
                     {(isSelected || isCaseMatch) && (
                       <circle
-                        r="20"
+                        r="22"
                         fill="none"
                         stroke="#00f0ff"
                         strokeWidth="2"
-                        className="animate-ping opacity-60"
+                        className="animate-ping opacity-75"
                       />
                     )}
 
-                    {/* Node Circle */}
+                    {/* Outer Glow Halo Ring */}
                     <circle
-                      r={node.type === 'CASE' || node.type === 'CAMPAIGN' ? 14 : 10}
-                      fill="#0d131f"
+                      r={isHubNode ? 16 : 11}
+                      fill="#0f172a"
                       stroke={config.color}
                       strokeWidth={isSelected ? 3 : 2}
-                      className="transition-all hover:scale-125"
+                      filter={isSelected ? 'url(#nodeGlow)' : undefined}
                       style={{
-                        filter: isSelected ? `drop-shadow(0 0 8px ${config.color})` : undefined,
+                        boxShadow: `0 0 12px ${config.glow}`,
                       }}
+                      className="transition-transform duration-200 group-hover:scale-125"
                     />
 
-                    {/* Inner Type Indicator */}
+                    {/* Dark Center Core with Type-Colored Dot */}
                     <circle
-                      r={node.type === 'CASE' || node.type === 'CAMPAIGN' ? 6 : 4}
+                      r={isHubNode ? 7 : 4.5}
                       fill={config.color}
+                      className="transition-all"
                     />
 
-                    {/* Node Label Text */}
+                    {/* Monospace Node Label */}
                     <text
-                      y={node.type === 'CASE' || node.type === 'CAMPAIGN' ? 24 : 20}
-                      fill={isSelected ? '#00f0ff' : '#cbd5e1'}
+                      y={isHubNode ? 26 : 22}
+                      fill={isSelected ? '#00f0ff' : '#e2e8f0'}
                       fontSize="9"
-                      fontFamily="monospace"
+                      fontFamily="ui-monospace, monospace"
                       fontWeight={isSelected ? 'bold' : 'normal'}
                       textAnchor="middle"
-                      className="pointer-events-none drop-shadow"
+                      className="pointer-events-none drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]"
                     >
-                      {node.label.length > 20 ? `${node.label.slice(0, 18)}…` : node.label}
+                      {node.label.length > 22 ? `${node.label.slice(0, 20)}…` : node.label}
                     </text>
                   </g>
                 );
@@ -375,63 +482,153 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
             </g>
           </svg>
 
-          {/* Legend Overlay */}
-          <div className="absolute bottom-3 left-3 p-2.5 rounded-lg bg-cyber-surface/90 border border-cyber-border text-[10px] font-mono space-y-1.5 backdrop-blur-md">
-            <span className="text-slate-500 uppercase font-bold block">ENTITY LEGEND</span>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-              {(Object.keys(NODE_CONFIG) as NodeType[]).map((type) => (
-                <div key={type} className="flex items-center space-x-1.5">
-                  <span
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: NODE_CONFIG[type].color }}
-                  />
-                  <span className="text-slate-300">{NODE_CONFIG[type].label}</span>
-                </div>
-              ))}
+          {/* ========================================================= */}
+          {/* FLOATING HUD OVERLAYS (Glassmorphic SOC Controllers)       */}
+          {/* ========================================================= */}
+
+          {/* TOP LEFT: Mission Status & Search Pod */}
+          <div className="absolute top-3 left-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800 backdrop-blur-md shadow-2xl font-mono text-xs space-y-2 z-20 max-w-sm">
+            <div className="flex items-center space-x-2 text-cyan-400 text-[11px] font-bold">
+              <Radio className="h-3.5 w-3.5 animate-pulse" />
+              <span>RADAR.CORRELATION // LIVE</span>
+            </div>
+            
+            <div className="relative">
+              <Search className="h-3.5 w-3.5 text-slate-500 absolute left-2.5 top-2" />
+              <input
+                type="text"
+                placeholder="Search nodes or IPs…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 pr-3 py-1 bg-slate-950/90 border border-slate-700/80 rounded text-xs font-mono text-slate-200 placeholder:text-slate-500 w-48 focus:w-60 transition-all focus:outline-none focus:border-cyan-400"
+              />
             </div>
           </div>
 
-          {/* Node Inspector Drawer */}
+          {/* TOP RIGHT: Tactical Zoom & Pan Control Pod */}
+          <div className="absolute top-3 right-3 flex items-center space-x-1.5 p-1.5 rounded-xl bg-slate-900/80 border border-slate-800 backdrop-blur-md shadow-2xl z-20">
+            <button
+              onClick={() => setZoom(z => Math.min(2.8, z + 0.2))}
+              className="p-1.5 rounded-lg bg-slate-800/80 text-slate-300 hover:text-cyan-400 hover:bg-slate-700 transition"
+              title="Zoom In"
+            >
+              <ZoomIn className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setZoom(z => Math.max(0.3, z - 0.2))}
+              className="p-1.5 rounded-lg bg-slate-800/80 text-slate-300 hover:text-cyan-400 hover:bg-slate-700 transition"
+              title="Zoom Out"
+            >
+              <ZoomOut className="h-4 w-4" />
+            </button>
+            <button
+              onClick={handleResetView}
+              className="p-1.5 rounded-lg bg-slate-800/80 text-slate-300 hover:text-cyan-400 hover:bg-slate-700 transition"
+              title="Reset View"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* BOTTOM LEFT: Entity Legend & Type Filter Strip */}
+          <div className="absolute bottom-3 left-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800 backdrop-blur-md shadow-2xl font-mono text-[10px] space-y-2 z-20 max-w-md">
+            <div className="flex items-center justify-between text-slate-400 font-bold uppercase tracking-wider">
+              <span>ENTITY CLASSIFIERS</span>
+              <button
+                onClick={() => setActiveFilter('ALL')}
+                className={`px-1.5 py-0.5 rounded transition ${
+                  activeFilter === 'ALL' ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40' : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                SHOW ALL ({rawNodes.length})
+              </button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+              {(Object.keys(NODE_CONFIG) as NodeType[]).map((type) => {
+                const count = rawNodes.filter(n => n.type === type).length;
+                if (count === 0) return null;
+                const isSelected = activeFilter === type;
+                return (
+                  <button
+                    key={type}
+                    onClick={() => setActiveFilter(isSelected ? 'ALL' : type)}
+                    className={`flex items-center space-x-1.5 px-2 py-1 rounded border text-left transition ${
+                      isSelected 
+                        ? 'border-cyan-400 bg-slate-800 text-white font-bold' 
+                        : 'border-slate-800/80 bg-slate-950/60 text-slate-300 hover:border-slate-700'
+                    }`}
+                  >
+                    <span
+                      className="h-2 w-2 rounded-full shrink-0"
+                      style={{ backgroundColor: NODE_CONFIG[type].color }}
+                    />
+                    <span className="truncate">{NODE_CONFIG[type].label}</span>
+                    <span className="text-slate-500 text-[9px]">({count})</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* BOTTOM RIGHT: Graph Telemetry Pod */}
+          <div className="absolute bottom-3 right-3 px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-800 backdrop-blur-md shadow-2xl font-mono text-[11px] text-slate-400 flex items-center space-x-3 z-20">
+            <div>NODES: <span className="text-cyan-400 font-bold">{filteredNodes.length}</span></div>
+            <div className="text-slate-700">|</div>
+            <div>EDGES: <span className="text-sky-400 font-bold">{visibleEdges.length}</span></div>
+            <div className="text-slate-700">|</div>
+            <div>ZOOM: <span className="text-slate-200 font-bold">{Math.round(zoom * 100)}%</span></div>
+          </div>
+
+          {/* INTERACTIVE NODE INSPECTOR FLYOUT */}
           {selectedNode && (
-            <div className="absolute top-3 right-3 w-72 p-4 rounded-xl bg-slate-900/95 border border-cyber-cyan/50 shadow-2xl backdrop-blur-md text-xs font-mono space-y-3 animate-fadeIn z-30">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center space-x-1.5">
+            <div className="absolute top-16 right-3 w-80 p-4.5 rounded-xl bg-slate-900/95 border border-cyan-500/50 shadow-2xl backdrop-blur-md text-xs font-mono space-y-3.5 z-30 animate-in fade-in slide-in-from-right-4 duration-200">
+              <div className="flex items-start justify-between border-b border-slate-800 pb-2.5">
+                <div className="flex items-center space-x-2">
                   <span
-                    className="w-2.5 h-2.5 rounded-full"
+                    className="h-3 w-3 rounded-full"
                     style={{ backgroundColor: NODE_CONFIG[selectedNode.type]?.color }}
                   />
-                  <span className="font-bold text-slate-100 uppercase">
+                  <span className="font-bold text-slate-100 uppercase tracking-wider">
                     {NODE_CONFIG[selectedNode.type]?.label || selectedNode.type}
                   </span>
                 </div>
                 <button
                   onClick={() => setSelectedNode(null)}
-                  className="text-slate-400 hover:text-white p-0.5 rounded"
+                  className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="h-4 w-4" />
                 </button>
               </div>
 
-              <div className="space-y-1">
-                <span className="text-[10px] text-slate-500 uppercase block">Entity Value:</span>
-                <div className="text-slate-200 font-bold break-all bg-cyber-bg p-2 rounded border border-cyber-border text-[11px]">
-                  {selectedNode.label}
+              <div className="space-y-1.5">
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold block">Entity Value</span>
+                <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 font-bold break-all text-[11px]">
+                  <span>{selectedNode.label}</span>
+                  <button
+                    onClick={() => copyToClipboard(selectedNode.label)}
+                    className="text-cyan-400 hover:text-cyan-300 ml-2 shrink-0"
+                    title="Copy Value"
+                  >
+                    {copiedValue === selectedNode.label ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                  </button>
                 </div>
               </div>
 
               <div className="space-y-1">
-                <span className="text-[10px] text-slate-500 uppercase block">Identifier:</span>
-                <span className="text-slate-400 text-[10px] break-all">{selectedNode.id}</span>
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold block">Identifier</span>
+                <span className="text-slate-400 text-[10px] break-all bg-slate-950/60 p-1.5 rounded block border border-slate-800/60">
+                  {selectedNode.id}
+                </span>
               </div>
 
               {selectedNode.metadata && Object.keys(selectedNode.metadata).length > 0 && (
-                <div className="space-y-1 pt-2 border-t border-cyber-border/40">
-                  <span className="text-[10px] text-slate-500 uppercase block">Attributes:</span>
+                <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+                  <span className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold block">Forensic Attributes</span>
                   <div className="space-y-1 text-[10px]">
                     {Object.entries(selectedNode.metadata).map(([k, v]) => (
-                      <div key={k} className="flex justify-between text-slate-400">
+                      <div key={k} className="flex justify-between items-center py-0.5 text-slate-400 border-b border-slate-800/40">
                         <span className="text-slate-500">{k}:</span>
-                        <span className="text-slate-300 font-bold truncate max-w-[120px]">
+                        <span className="text-slate-200 font-bold truncate max-w-[140px]">
                           {String(v)}
                         </span>
                       </div>
@@ -442,22 +639,21 @@ export const InvestigationGraphView: React.FC<InvestigationGraphViewProps> = ({
 
               {selectedNode.type === 'CASE' && onSelectCase && (
                 <div className="pt-2">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    className="w-full"
+                  <button
                     onClick={() => onSelectCase(selectedNode.id.replace('case:', ''))}
+                    className="w-full flex items-center justify-center space-x-1.5 px-3 py-2 rounded-lg bg-cyan-500/20 border border-cyan-500/50 text-cyan-300 font-bold hover:bg-cyan-500/30 transition text-xs"
                   >
-                    Load Case Detail
-                  </Button>
+                    <span>Load Case Detail Workspace</span>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               )}
             </div>
           )}
 
         </div>
-
       </div>
-    </Card>
+
+    </div>
   );
 };
