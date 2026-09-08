@@ -34,12 +34,14 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
-from backend.utils.asn_utils import lookup_asn
-from backend.utils.geoip import lookup_geoip
+import concurrent.futures
+import socket
+from backend.utils.asn_utils import clear_asn_cache, lookup_asn
+from backend.utils.geoip import clear_geoip_cache, lookup_geoip
 from backend.utils.ip_utils import classify_ip
 from backend.utils.url_intel import analyze_url_structure
 from backend.utils.url_utils import normalize_domain
-from backend.utils.whois_utils import _get_base_domain, lookup_rdap_domain
+from backend.utils.whois_utils import _get_base_domain, clear_rdap_cache, lookup_rdap_domain
 
 logger = logging.getLogger("mailtrace.intelligence")
 
@@ -49,13 +51,39 @@ logger = logging.getLogger("mailtrace.intelligence")
 
 _IP_INTEL_CACHE: dict[str, dict[str, Any]] = {}
 _DOMAIN_INTEL_CACHE: dict[str, dict[str, Any]] = {}
+_DOMAIN_DNS_CACHE: dict[str, list[str]] = {}
 
 
 def clear_intel_cache() -> None:
     """Clear in-memory intelligence caches (primarily used for unit testing)."""
-    global _IP_INTEL_CACHE, _DOMAIN_INTEL_CACHE
+    global _IP_INTEL_CACHE, _DOMAIN_INTEL_CACHE, _DOMAIN_DNS_CACHE
     _IP_INTEL_CACHE.clear()
     _DOMAIN_INTEL_CACHE.clear()
+    _DOMAIN_DNS_CACHE.clear()
+    clear_geoip_cache()
+    clear_asn_cache()
+    clear_rdap_cache()
+
+
+def _resolve_domain_ips(domain: str) -> list[str]:
+    """Perform fast, non-blocking DNS A-record resolution for a domain name."""
+    norm = normalize_domain(domain)
+    if not norm or "." not in norm or classify_ip(norm) != "unknown":
+        return []
+    if norm in _DOMAIN_DNS_CACHE:
+        return _DOMAIN_DNS_CACHE[norm]
+    try:
+        addr_info = socket.getaddrinfo(norm, 80, socket.AF_INET, socket.SOCK_STREAM)
+        ips = []
+        for item in addr_info:
+            ip_val = item[4][0]
+            if ip_val and classify_ip(ip_val) == "public" and ip_val not in ips:
+                ips.append(ip_val)
+        _DOMAIN_DNS_CACHE[norm] = ips
+        return ips
+    except Exception:
+        _DOMAIN_DNS_CACHE[norm] = []
+        return []
 
 
 # ------------------------------------------------------------------ #
@@ -152,7 +180,42 @@ def enrich_infrastructure(
     if not isinstance(parsed_email, dict):
         parsed_email = {}
 
-    # 1. Collect unique IP addresses
+    # 1. Collect unique domains
+    collected_domains: list[str] = []
+    seen_domains: set[str] = set()
+
+    for dom in parsed_email.get("domains", []):
+        if dom and dom not in seen_domains:
+            seen_domains.add(dom)
+            collected_domains.append(dom)
+
+    # Sender, Reply-To, Return-Path domains
+    sender_domain = parsed_email.get("sender", {}).get("domain") if isinstance(parsed_email.get("sender"), dict) else None
+    if sender_domain and sender_domain not in seen_domains:
+        seen_domains.add(sender_domain)
+        collected_domains.append(sender_domain)
+
+    reply_to_dom = parsed_email.get("reply_to", {}).get("domain") if isinstance(parsed_email.get("reply_to"), dict) else None
+    if reply_to_dom and reply_to_dom not in seen_domains:
+        seen_domains.add(reply_to_dom)
+        collected_domains.append(reply_to_dom)
+
+    return_path_dom = parsed_email.get("return_path", {}).get("domain") if isinstance(parsed_email.get("return_path"), dict) else None
+    if return_path_dom and return_path_dom not in seen_domains:
+        seen_domains.add(return_path_dom)
+        collected_domains.append(return_path_dom)
+
+    # Domains from URLs
+    for u_item in parsed_email.get("urls", []):
+        u_str = u_item.get("url", "") if isinstance(u_item, dict) else str(u_item)
+        u_dom = u_item.get("domain", "") if isinstance(u_item, dict) else ""
+        if not u_dom and "://" in u_str:
+            u_dom = u_str.split("://", 1)[1].split("/", 1)[0].split(":", 1)[0]
+        if u_dom and classify_ip(u_dom) == "unknown" and u_dom not in seen_domains:
+            seen_domains.add(u_dom)
+            collected_domains.append(u_dom)
+
+    # 2. Collect unique IP addresses (headers, transport hops, URL hosts)
     collected_ips: list[str] = []
     seen_ips: set[str] = set()
 
@@ -168,16 +231,18 @@ def enrich_infrastructure(
             collected_ips.append(ip_val)
 
     relay = parsed_email.get("received_chain", {})
-    for ip_val in relay.get("public_ips_observed", []):
-        if ip_val and ip_val not in seen_ips:
-            seen_ips.add(ip_val)
-            collected_ips.append(ip_val)
-
-    for hop in relay.get("chain", []):
-        for ip_val in hop.get("ips_found", []):
+    if isinstance(relay, dict):
+        for ip_val in relay.get("public_ips_observed", []):
             if ip_val and ip_val not in seen_ips:
                 seen_ips.add(ip_val)
                 collected_ips.append(ip_val)
+
+        for hop in relay.get("chain", []):
+            if isinstance(hop, dict):
+                for ip_val in hop.get("ips_found", []):
+                    if ip_val and ip_val not in seen_ips:
+                        seen_ips.add(ip_val)
+                        collected_ips.append(ip_val)
 
     # Collect IPs from URL hosts
     for u_item in parsed_email.get("urls", []):
@@ -190,51 +255,51 @@ def enrich_infrastructure(
                 seen_ips.add(domain)
                 collected_ips.append(domain)
 
-    # Enrich IPs
+    # 3. Live DNS A-Record Resolution for domains
+    domain_resolved_map: dict[str, list[str]] = {}
+    if collected_domains:
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(6, len(collected_domains))) as ex:
+                domain_ip_results = list(ex.map(_resolve_domain_ips, collected_domains))
+            for dom, res_ips in zip(collected_domains, domain_ip_results):
+                domain_resolved_map[dom] = res_ips
+                # If no explicit header/hop IPs were present in the email, use resolved domain IPs for GeoMap plotting
+                if not collected_ips:
+                    for ip_res in res_ips:
+                        if ip_res not in seen_ips:
+                            seen_ips.add(ip_res)
+                            collected_ips.append(ip_res)
+        except Exception as dns_exc:
+            logger.debug(f"DNS resolution batch error: {dns_exc}")
+
+    # 4. Enrich IPs (concurrent / parallel)
     enriched_ips: list[dict[str, Any]] = []
     public_ip_count = 0
     private_ip_count = 0
 
-    for ip_str in collected_ips:
-        rec = _enrich_single_ip(ip_str)
-        enriched_ips.append(rec)
-        if rec.get("classification") == "public":
-            public_ip_count += 1
-        else:
-            private_ip_count += 1
+    if collected_ips:
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(collected_ips))) as ex:
+                enriched_ips = list(ex.map(_enrich_single_ip, collected_ips))
+        except Exception:
+            enriched_ips = [_enrich_single_ip(ip) for ip in collected_ips]
 
-    # 2. Collect unique domains
-    collected_domains: list[str] = []
-    seen_domains: set[str] = set()
+        for rec in enriched_ips:
+            if rec.get("classification") == "public":
+                public_ip_count += 1
+            else:
+                private_ip_count += 1
 
-    for dom in parsed_email.get("domains", []):
-        if dom and dom not in seen_domains:
-            seen_domains.add(dom)
-            collected_domains.append(dom)
-
-    # Sender, Reply-To, Return-Path domains
-    sender_domain = parsed_email.get("sender", {}).get("domain")
-    if sender_domain and sender_domain not in seen_domains:
-        seen_domains.add(sender_domain)
-        collected_domains.append(sender_domain)
-
-    reply_to_dom = parsed_email.get("reply_to", {}).get("domain") if parsed_email.get("reply_to") else None
-    if reply_to_dom and reply_to_dom not in seen_domains:
-        seen_domains.add(reply_to_dom)
-        collected_domains.append(reply_to_dom)
-
-    return_path_dom = parsed_email.get("return_path", {}).get("domain") if parsed_email.get("return_path") else None
-    if return_path_dom and return_path_dom not in seen_domains:
-        seen_domains.add(return_path_dom)
-        collected_domains.append(return_path_dom)
-
-    # Enrich domains
+    # 5. Enrich domains (concurrent / parallel)
     enriched_domains: list[dict[str, Any]] = []
-    for dom_str in collected_domains:
-        rec = _enrich_single_domain(dom_str)
-        enriched_domains.append(rec)
+    if collected_domains:
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(6, len(collected_domains))) as ex:
+                enriched_domains = list(ex.map(_enrich_single_domain, collected_domains))
+        except Exception:
+            enriched_domains = [_enrich_single_domain(d) for d in collected_domains]
 
-    # 3. Analyze URLs passively
+    # 6. Analyze URLs passively
     analyzed_urls: list[dict[str, Any]] = []
     seen_urls: set[str] = set()
     suspicious_url_count = 0

@@ -174,21 +174,21 @@ export const InfrastructurePanel: React.FC<InfrastructurePanelProps> = ({
                       <div>
                         <span className="text-slate-500 text-[10px] uppercase block">Created Date:</span>
                         <span className="text-slate-200">
-                          {formatDate(rdap.creation_date)}
+                          {formatDate(rdap.creation_date || rdap.created)}
                         </span>
                       </div>
 
                       <div>
                         <span className="text-slate-500 text-[10px] uppercase block">Updated Date:</span>
                         <span className="text-slate-200">
-                          {formatDate(rdap.updated_date)}
+                          {formatDate(rdap.updated_date || rdap.updated)}
                         </span>
                       </div>
 
                       <div>
                         <span className="text-slate-500 text-[10px] uppercase block">Expiration Date:</span>
                         <span className="text-slate-200">
-                          {formatDate(rdap.expiration_date)}
+                          {formatDate(rdap.expiration_date || rdap.expires)}
                         </span>
                       </div>
                     </div>

@@ -44,6 +44,15 @@ def _get_base_domain(domain: str) -> str:
     return d
 
 
+# In-memory RDAP domain cache
+_RDAP_CACHE: dict[str, dict[str, Any]] = {}
+
+
+def clear_rdap_cache() -> None:
+    """Clear in-memory RDAP cache."""
+    _RDAP_CACHE.clear()
+
+
 def lookup_rdap_domain(domain: str) -> dict[str, Any]:
     """
     Perform passive RDAP registration lookup for a domain.
@@ -53,9 +62,9 @@ def lookup_rdap_domain(domain: str) -> dict[str, Any]:
         - domain: str
         - registrable_domain: str
         - registrar: str | None
-        - created: str | None
-        - expires: str | None
-        - updated: str | None
+        - created / creation_date: str | None
+        - expires / expiration_date: str | None
+        - updated / updated_date: str | None
         - status_codes: list[str]
         - nameservers: list[str]
         - registrant_privacy: str
@@ -69,8 +78,11 @@ def lookup_rdap_domain(domain: str) -> dict[str, Any]:
             "registrable_domain": None,
             "registrar": None,
             "created": None,
+            "creation_date": None,
             "expires": None,
+            "expiration_date": None,
             "updated": None,
+            "updated_date": None,
             "status_codes": [],
             "nameservers": [],
             "registrant_privacy": "unknown",
@@ -81,91 +93,131 @@ def lookup_rdap_domain(domain: str) -> dict[str, Any]:
     norm_domain = normalize_domain(domain)
     base_domain = _get_base_domain(norm_domain)
 
-    # Attempt RDAP lookup via standard HTTPS RDAP endpoint
+    if not base_domain or "." not in base_domain:
+        return {
+            "status": "unavailable",
+            "domain": norm_domain,
+            "registrable_domain": base_domain,
+            "registrar": None,
+            "created": None,
+            "creation_date": None,
+            "expires": None,
+            "expiration_date": None,
+            "updated": None,
+            "updated_date": None,
+            "status_codes": [],
+            "nameservers": [],
+            "registrant_privacy": "unknown",
+            "source": "unavailable",
+            "reason": "Invalid registrable domain",
+        }
+
+    if base_domain in _RDAP_CACHE:
+        return _RDAP_CACHE[base_domain]
+
+    # Attempt RDAP lookup via standard HTTPS RDAP endpoints
+    rdap_endpoints = [
+        f"https://rdap.org/domain/{base_domain}",
+        f"https://rdap.iana.org/domain/{base_domain}",
+    ]
+
     try:
         import httpx  # type: ignore
 
-        url = f"https://rdap.org/domain/{base_domain}"
-        with httpx.Client(timeout=2.5, follow_redirects=True) as client:
-            resp = client.get(url, headers={"Accept": "application/rdap+json"})
-            if resp.status_code == 200:
-                data = resp.json()
+        for url in rdap_endpoints:
+            try:
+                with httpx.Client(timeout=2.5, follow_redirects=True) as client:
+                    resp = client.get(url, headers={"Accept": "application/rdap+json, application/json"})
+                    if resp.status_code == 200:
+                        data = resp.json()
 
-                # Extract events (created, expires, updated)
-                events = data.get("events", [])
-                created = None
-                expires = None
-                updated = None
-                for ev in events:
-                    action = ev.get("eventAction", "").lower()
-                    date_val = ev.get("eventDate")
-                    if action == "registration":
-                        created = date_val
-                    elif action == "expiration":
-                        expires = date_val
-                    elif action in ("last changed", "last update"):
-                        updated = date_val
+                        # Extract events (created, expires, updated)
+                        events = data.get("events", [])
+                        created = None
+                        expires = None
+                        updated = None
+                        for ev in events:
+                            action = ev.get("eventAction", "").lower()
+                            date_val = ev.get("eventDate")
+                            if action == "registration":
+                                created = date_val
+                            elif action == "expiration":
+                                expires = date_val
+                            elif action in ("last changed", "last update"):
+                                updated = date_val
 
-                # Extract registrar
-                registrar = None
-                entities = data.get("entities", [])
-                for ent in entities:
-                    roles = ent.get("roles", [])
-                    if "registrar" in roles:
-                        vcard = ent.get("vcardArray", [])
-                        if len(vcard) > 1 and isinstance(vcard[1], list):
-                            for prop in vcard[1]:
-                                if len(prop) > 3 and prop[0] == "fn":
-                                    registrar = prop[3]
-                                    break
-                        if not registrar:
-                            registrar = ent.get("handle")
+                        # Extract registrar
+                        registrar = None
+                        entities = data.get("entities", [])
+                        for ent in entities:
+                            roles = ent.get("roles", [])
+                            if "registrar" in roles:
+                                vcard = ent.get("vcardArray", [])
+                                if len(vcard) > 1 and isinstance(vcard[1], list):
+                                    for prop in vcard[1]:
+                                        if len(prop) > 3 and prop[0] == "fn":
+                                            registrar = prop[3]
+                                            break
+                                if not registrar:
+                                    registrar = ent.get("handle") or ent.get("name")
 
-                # Extract nameservers
-                nameservers = []
-                for ns in data.get("nameservers", []):
-                    ns_name = ns.get("ldhName") or ns.get("handle")
-                    if ns_name:
-                        nameservers.append(ns_name.lower())
+                        # Extract nameservers
+                        nameservers = []
+                        for ns in data.get("nameservers", []):
+                            ns_name = ns.get("ldhName") or ns.get("handle") or (ns.get("name") if isinstance(ns, dict) else str(ns))
+                            if ns_name:
+                                nameservers.append(str(ns_name).lower())
 
-                # Status codes
-                status_codes = data.get("status", [])
+                        # Status codes
+                        status_codes = data.get("status", [])
 
-                # Privacy detection
-                privacy = "redacted"
-                raw_str = str(data).lower()
-                if "privacy" in raw_str or "proxy" in raw_str or "withheld" in raw_str or "redacted" in raw_str:
-                    privacy = "protected"
+                        # Privacy detection
+                        privacy = "redacted"
+                        raw_str = str(data).lower()
+                        if "privacy" in raw_str or "proxy" in raw_str or "withheld" in raw_str or "redacted" in raw_str:
+                            privacy = "protected"
 
-                return {
-                    "status": "success",
-                    "domain": norm_domain,
-                    "registrable_domain": base_domain,
-                    "registrar": registrar,
-                    "created": created,
-                    "expires": expires,
-                    "updated": updated,
-                    "status_codes": status_codes,
-                    "nameservers": nameservers,
-                    "registrant_privacy": privacy,
-                    "source": "rdap",
-                    "reason": None,
-                }
+                        rec = {
+                            "status": "success",
+                            "domain": norm_domain,
+                            "registrable_domain": base_domain,
+                            "registrar": registrar,
+                            "created": created,
+                            "creation_date": created,
+                            "expires": expires,
+                            "expiration_date": expires,
+                            "updated": updated,
+                            "updated_date": updated,
+                            "status_codes": status_codes,
+                            "nameservers": nameservers,
+                            "registrant_privacy": privacy,
+                            "source": "rdap",
+                            "reason": None,
+                        }
+                        _RDAP_CACHE[base_domain] = rec
+                        return rec
+            except Exception:
+                continue
     except Exception as exc:
         logger.debug(f"RDAP lookup exception for {base_domain}: {exc}")
 
     # Fallback when unavailable / offline
-    return {
+    rec = {
         "status": "unavailable",
         "domain": norm_domain,
         "registrable_domain": base_domain,
         "registrar": None,
         "created": None,
+        "creation_date": None,
         "expires": None,
+        "expiration_date": None,
         "updated": None,
+        "updated_date": None,
         "status_codes": [],
         "nameservers": [],
         "registrant_privacy": "not available",
         "source": "unavailable",
         "reason": "RDAP lookup not configured or domain not found",
     }
+    _RDAP_CACHE[base_domain] = rec
+    return rec

@@ -180,8 +180,11 @@ export interface IPRecord {
 export interface DomainRDAP {
   registrar?: string | null;
   creation_date?: string | null;
+  created?: string | null;
   updated_date?: string | null;
+  updated?: string | null;
   expiration_date?: string | null;
+  expires?: string | null;
   nameservers?: string[];
   status?: string[];
   source?: string;

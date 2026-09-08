@@ -24,6 +24,15 @@ from backend.utils.ip_utils import classify_ip
 logger = logging.getLogger("mailtrace.utils.asn")
 
 
+# In-memory ASN cache
+_ASN_CACHE: dict[str, dict[str, Any]] = {}
+
+
+def clear_asn_cache() -> None:
+    """Clear in-memory ASN cache."""
+    _ASN_CACHE.clear()
+
+
 def lookup_asn(ip: str) -> dict[str, Any]:
     """
     Lookup ASN and network ownership information for an IP address.
@@ -51,10 +60,13 @@ def lookup_asn(ip: str) -> dict[str, Any]:
         }
 
     ip_clean = ip.strip()
+    if ip_clean in _ASN_CACHE:
+        return _ASN_CACHE[ip_clean]
+
     classification = classify_ip(ip_clean)
 
     if classification != "public":
-        return {
+        rec = {
             "status": "excluded",
             "ip": ip_clean,
             "asn": None,
@@ -64,8 +76,32 @@ def lookup_asn(ip: str) -> dict[str, Any]:
             "source": "local_filter",
             "reason": f"Non-public IP ({classification})",
         }
+        _ASN_CACHE[ip_clean] = rec
+        return rec
 
-    # 1. Try IPInfo if token configured
+    # 1. Check shared ASN data from GeoIP lookup
+    try:
+        from backend.utils.geoip import _SHARED_ASN_DATA
+        if ip_clean in _SHARED_ASN_DATA:
+            shared = _SHARED_ASN_DATA[ip_clean]
+            asn_raw = shared.get("asn")
+            asn_val = f"AS{asn_raw}" if isinstance(asn_raw, int) else (str(asn_raw) if asn_raw else None)
+            rec = {
+                "status": "success",
+                "ip": ip_clean,
+                "asn": asn_val,
+                "organization": shared.get("org") or shared.get("isp"),
+                "network": None,
+                "registry": shared.get("domain"),
+                "source": "local_asn",
+                "reason": None,
+            }
+            _ASN_CACHE[ip_clean] = rec
+            return rec
+    except Exception:
+        pass
+
+    # 2. Try IPInfo if token configured
     if settings.IPINFO_TOKEN:
         try:
             import httpx  # type: ignore
@@ -86,7 +122,7 @@ def lookup_asn(ip: str) -> dict[str, Any]:
                             asn_num = match.group(1).upper()
                             asn_org = match.group(2).strip()
 
-                    return {
+                    rec = {
                         "status": "success",
                         "ip": ip_clean,
                         "asn": asn_num or (data.get("asn", {}).get("asn") if isinstance(data.get("asn"), dict) else None),
@@ -96,11 +132,41 @@ def lookup_asn(ip: str) -> dict[str, Any]:
                         "source": "ipinfo",
                         "reason": None,
                     }
+                    _ASN_CACHE[ip_clean] = rec
+                    return rec
         except Exception as exc:
             logger.warning(f"IPInfo ASN lookup failed for {ip_clean}: {exc}")
 
-    # 2. Fallback when unconfigured / offline
-    return {
+    # 3. Live High-Speed Passive ASN Service
+    try:
+        import httpx  # type: ignore
+
+        with httpx.Client(timeout=2.0, follow_redirects=True) as client:
+            resp = client.get(f"https://ipwho.is/{ip_clean}")
+            if resp.status_code == 200:
+                data = resp.json()
+                conn = data.get("connection", {})
+                if conn:
+                    asn_raw = conn.get("asn")
+                    asn_val = f"AS{asn_raw}" if isinstance(asn_raw, int) else (str(asn_raw) if asn_raw else None)
+                    org_val = conn.get("org") or conn.get("isp")
+                    rec = {
+                        "status": "success",
+                        "ip": ip_clean,
+                        "asn": asn_val,
+                        "organization": org_val,
+                        "network": None,
+                        "registry": conn.get("domain"),
+                        "source": "local_asn",
+                        "reason": None,
+                    }
+                    _ASN_CACHE[ip_clean] = rec
+                    return rec
+    except Exception as exc:
+        logger.debug(f"Live ASN lookup failed for {ip_clean}: {exc}")
+
+    # 4. Fallback when unconfigured / offline
+    rec = {
         "status": "unknown",
         "ip": ip_clean,
         "asn": None,
@@ -110,3 +176,5 @@ def lookup_asn(ip: str) -> dict[str, Any]:
         "source": "unavailable",
         "reason": "ASN provider not configured or unavailable",
     }
+    _ASN_CACHE[ip_clean] = rec
+    return rec
