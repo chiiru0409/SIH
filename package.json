@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
+    "dev": "npm --prefix mailtrace/frontend run dev",
     "build": "npm --prefix mailtrace/frontend run build",
     "test": "npm --prefix mailtrace/frontend run test"
   }
