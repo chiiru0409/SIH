@@ -5,7 +5,7 @@ import {
   Check, 
   FileCode, 
   ShieldAlert,
-  ShieldCheck,
+  ShieldCheck, 
   Layers, 
   Search, 
   Compass, 
@@ -13,13 +13,16 @@ import {
   ExternalLink,
   Code,
   Mail,
-  ArrowLeft
+  ArrowLeft,
+  Printer,
+  FileText
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Tabs } from '../ui/Tabs';
 import { Modal } from '../ui/Modal';
+import { ForensicReportModal } from './ForensicReportModal';
 import { formatDate, truncateHash } from '../../lib/utils';
 import { sanitizeHtml } from '../../lib/sanitize';
 import { RiskScoreHero } from '../risk/RiskScoreHero';
@@ -54,6 +57,7 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
   const [activeTab, setActiveTab] = useState<'overview' | 'forensics' | 'threat' | 'infrastructure' | 'graph' | 'integrity' | 'raw_email'>('overview');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isHeadersModalOpen, setIsHeadersModalOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   const copyToClipboard = (text?: string | null, field?: string) => {
     if (!text || !field) return;
@@ -316,6 +320,17 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
               </button>
             )}
 
+            {/* Export Forensic Dossier Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<FileText className="w-3.5 h-3.5 text-cyber-cyan" />}
+              onClick={() => setIsReportModalOpen(true)}
+              className="font-mono text-xs border-cyber-cyan/30 hover:border-cyber-cyan text-cyber-cyan"
+            >
+              Export Dossier
+            </Button>
+
             {/* View Raw Headers Modal Button */}
             <Button
               variant="outline"
@@ -534,6 +549,14 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
           </div>
         </div>
       </Modal>
+
+      {/* Forensic Report Dossier Modal */}
+      <ForensicReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        caseData={caseData}
+        correlationData={correlationData}
+      />
 
     </div>
   );
