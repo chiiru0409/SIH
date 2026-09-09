@@ -2,18 +2,19 @@ import React from 'react';
 import { InvestigationCase } from '../../types/investigation';
 import { RiskGauge } from '../common/RiskGauge';
 import { Badge } from '../common/Badge';
+import { safeStr } from '../../lib/utils';
 
 interface VerdictSummaryProps {
   verdict?: Partial<InvestigationCase['verdict']>;
 }
 
 export const VerdictSummary: React.FC<VerdictSummaryProps> = ({ verdict = {} }) => {
-  const severity = verdict?.severity || 'HIGH';
-  const primaryThreat = verdict?.primaryThreat || 'SUSPICIOUS';
-  const riskScore = verdict?.overallRiskScore ?? verdict?.riskScore ?? 75;
-  const confidenceScore = verdict?.confidenceScore ?? verdict?.confidence ?? 94;
-  const summaryText = verdict?.summary || verdict?.summaryExplanation || 'Automated forensic inspection completed.';
-  const secondaryThreats = Array.isArray(verdict?.secondaryThreats) ? verdict.secondaryThreats : [];
+  const severity = safeStr(verdict?.severity || 'HIGH').toUpperCase();
+  const primaryThreat = safeStr(verdict?.primaryThreat || 'SUSPICIOUS');
+  const riskScore = Number(verdict?.overallRiskScore ?? verdict?.riskScore ?? 75);
+  const confidenceScore = Number(verdict?.confidenceScore ?? verdict?.confidence ?? 94);
+  const summaryText = safeStr(verdict?.summary || verdict?.summaryExplanation || 'Automated forensic inspection completed.');
+  const secondaryThreats = Array.isArray(verdict?.secondaryThreats) ? verdict.secondaryThreats.map(t => safeStr(t)) : [];
 
   const isBenign = severity === 'LOW' || severity === 'INFO' || primaryThreat === 'BENIGN';
   const isCritical = severity === 'CRITICAL';

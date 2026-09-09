@@ -2,6 +2,7 @@ import React from 'react';
 import { AuthenticationResults } from '../../types/email';
 import { ShieldCheck, CheckCircle2, XCircle } from 'lucide-react';
 import { Badge } from '../common/Badge';
+import { safeStr } from '../../lib/utils';
 
 interface AuthIntelligenceProps {
   auth?: Partial<AuthenticationResults>;
@@ -12,9 +13,19 @@ export const AuthIntelligence: React.FC<AuthIntelligenceProps> = ({ auth }) => {
   const spf = safeAuth.spf || { status: 'NONE' as any, domain: 'unknown', ip: '185.220.101.42', details: 'No SPF evaluation' };
   const dkim = safeAuth.dkim || { status: 'NONE' as any, domain: 'unknown', selector: 's1', details: 'No DKIM evaluation' };
   const dmarc = safeAuth.dmarc || { status: 'NONE' as any, policy: 'none' as any, details: 'No DMARC evaluation' };
-  const overallAlignment = safeAuth.overallAlignment ?? (spf.status === 'PASS' && (dkim.status === 'PASS' || dmarc.status === 'PASS'));
+  const overallAlignment = Boolean(safeAuth.overallAlignment ?? (spf.status === 'PASS' && (dkim.status === 'PASS' || dmarc.status === 'PASS')));
 
-  const spfIp = (spf as any).ip || (spf as any).senderIp || '185.220.101.42';
+  const spfIp = safeStr((spf as any).ip || (spf as any).senderIp || '185.220.101.42');
+  const spfDomain = safeStr(spf.domain || 'unknown');
+  const spfDetails = safeStr(spf.details || 'SPF record verification');
+
+  const dkimDomain = safeStr(dkim.domain || 'unknown');
+  const dkimSelector = safeStr(dkim.selector || 'default');
+  const dkimDetails = safeStr(dkim.details || 'DKIM signature cryptographic check');
+
+  const dmarcPolicy = safeStr(dmarc.policy || 'none');
+  const dmarcFrom = safeStr((dmarc as any).headerFromDomain || spf.domain || 'unknown');
+  const dmarcDetails = safeStr(dmarc.details || 'DMARC alignment policy check');
 
   return (
     <div className="p-5 rounded-lg bg-cyber-panel border border-slate-800 space-y-4">
@@ -45,7 +56,7 @@ export const AuthIntelligence: React.FC<AuthIntelligenceProps> = ({ auth }) => {
             <div className="flex items-center gap-2">
               <span className="font-mono text-sm font-bold text-slate-200">SPF</span>
               <Badge variant="protocol" protocolStatus={spf.status || 'NONE'} size="xs">
-                {spf.status || 'NONE'}
+                {safeStr(spf.status || 'NONE')}
               </Badge>
             </div>
             {spf.status === 'PASS' ? (
@@ -62,10 +73,10 @@ export const AuthIntelligence: React.FC<AuthIntelligenceProps> = ({ auth }) => {
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Envelope-From:</span>
-              <span className="text-slate-300 truncate max-w-[140px]">{spf.domain || 'unknown'}</span>
+              <span className="text-slate-300 truncate max-w-[140px]">{spfDomain}</span>
             </div>
             <div className="pt-2 border-t border-slate-800 text-[11px] text-slate-400">
-              {spf.details || 'SPF record verification'}
+              {spfDetails}
             </div>
           </div>
         </div>
@@ -76,7 +87,7 @@ export const AuthIntelligence: React.FC<AuthIntelligenceProps> = ({ auth }) => {
             <div className="flex items-center gap-2">
               <span className="font-mono text-sm font-bold text-slate-200">DKIM</span>
               <Badge variant="protocol" protocolStatus={dkim.status || 'NONE'} size="xs">
-                {dkim.status || 'NONE'}
+                {safeStr(dkim.status || 'NONE')}
               </Badge>
             </div>
             {dkim.status === 'PASS' ? (
@@ -89,14 +100,14 @@ export const AuthIntelligence: React.FC<AuthIntelligenceProps> = ({ auth }) => {
           <div className="space-y-1.5 text-xs font-mono">
             <div className="flex justify-between">
               <span className="text-slate-400">Signing Domain:</span>
-              <span className="text-slate-300 truncate max-w-[140px]">{dkim.domain || 'unknown'}</span>
+              <span className="text-slate-300 truncate max-w-[140px]">{dkimDomain}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Selector:</span>
-              <span className="text-slate-200">{dkim.selector || 'default'}</span>
+              <span className="text-slate-200">{dkimSelector}</span>
             </div>
             <div className="pt-2 border-t border-slate-800 text-[11px] text-slate-400">
-              {dkim.details || 'DKIM signature cryptographic check'}
+              {dkimDetails}
             </div>
           </div>
         </div>
@@ -107,7 +118,7 @@ export const AuthIntelligence: React.FC<AuthIntelligenceProps> = ({ auth }) => {
             <div className="flex items-center gap-2">
               <span className="font-mono text-sm font-bold text-slate-200">DMARC</span>
               <Badge variant="protocol" protocolStatus={dmarc.status || 'NONE'} size="xs">
-                {dmarc.status || 'NONE'}
+                {safeStr(dmarc.status || 'NONE')}
               </Badge>
             </div>
             {dmarc.status === 'PASS' ? (
@@ -120,14 +131,14 @@ export const AuthIntelligence: React.FC<AuthIntelligenceProps> = ({ auth }) => {
           <div className="space-y-1.5 text-xs font-mono">
             <div className="flex justify-between">
               <span className="text-slate-400">Policy Action:</span>
-              <span className="text-amber-400 font-bold uppercase">{dmarc.policy || 'none'}</span>
+              <span className="text-amber-400 font-bold uppercase">{dmarcPolicy}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Header-From:</span>
-              <span className="text-slate-300 truncate max-w-[140px]">{(dmarc as any).headerFromDomain || spf.domain || 'unknown'}</span>
+              <span className="text-slate-300 truncate max-w-[140px]">{dmarcFrom}</span>
             </div>
             <div className="pt-2 border-t border-slate-800 text-[11px] text-slate-400">
-              {dmarc.details || 'DMARC alignment policy check'}
+              {dmarcDetails}
             </div>
           </div>
         </div>

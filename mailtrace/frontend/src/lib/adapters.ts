@@ -2,6 +2,7 @@ import { InvestigationCase, ExplainableFinding, RiskBreakdown, BehavioralContext
 import { EmailMetadata, SmtpHop, ExtractedUrl, EmailAttachment, AuthStatus } from '../types/email';
 import { CryptographicEvidence } from '../types/evidence';
 import { UploadResponse } from '../types/api';
+import { safeStr } from './utils';
 
 /**
  * Transforms a raw API UploadResponse or CaseDetail into frontend state models:
@@ -12,28 +13,28 @@ export function adaptUploadResponseToModels(data: UploadResponse | any): {
   emailMetadata: EmailMetadata;
   evidenceRecord: CryptographicEvidence;
 } {
-  const caseId = data.case_id || data.caseId || `CASE-${Date.now().toString().slice(-6)}`;
+  const caseId = safeStr(data.case_id || data.caseId || `CASE-${Date.now().toString().slice(-6)}`);
   const emailId = `em-${caseId.replace(/[^a-zA-Z0-9]/g, '').slice(-8)}`;
   const nowIso = new Date().toISOString();
 
   // 1. Extract Email / Header info
   const emailInfo = data.email || {};
-  const fromAddress = emailInfo.from || data.sender || 'security-alert@external-node.com';
-  const fromDisplay = emailInfo.from_display || emailInfo.fromDisplayName || fromAddress.split('@')[0];
+  const fromAddress = safeStr(emailInfo.from || data.sender || 'security-alert@external-node.com');
+  const fromDisplay = safeStr(emailInfo.from_display || emailInfo.fromDisplayName || fromAddress.split('@')[0]);
   const fromDomain = fromAddress.includes('@') ? fromAddress.split('@')[1] : 'external-node.com';
-  const toList = Array.isArray(emailInfo.to) ? emailInfo.to : [emailInfo.to || 'soc-target@enterprise.com'];
+  const toList = Array.isArray(emailInfo.to) ? emailInfo.to.map((t: any) => safeStr(t)) : [safeStr(emailInfo.to || 'soc-target@enterprise.com')];
   const recipient = toList[0] || 'soc-target@enterprise.com';
-  const subject = emailInfo.subject || data.subject || data.filename || 'Forensic Analyzed EML Evidence';
-  const date = emailInfo.date || data.timestamp || nowIso;
-  const messageId = emailInfo.message_id || `<${caseId}@mailtrace.forensic>`;
-  const replyTo = emailInfo.reply_to || fromAddress;
-  const returnPath = emailInfo.return_path || fromAddress;
+  const subject = safeStr(emailInfo.subject || data.subject || data.filename || 'Forensic Analyzed EML Evidence');
+  const date = safeStr(emailInfo.date || data.timestamp || nowIso);
+  const messageId = safeStr(emailInfo.message_id || `<${caseId}@mailtrace.forensic>`);
+  const replyTo = safeStr(emailInfo.reply_to || fromAddress);
+  const returnPath = safeStr(emailInfo.return_path || fromAddress);
 
   // 2. Extract Auth & Alignment
   const auth = data.authentication || {};
   const normalizeAuth = (st: any): AuthStatus => {
     if (!st) return 'NONE';
-    const s = String(st).toUpperCase();
+    const s = safeStr(st).toUpperCase();
     if (s.includes('PASS')) return 'PASS';
     if (s.includes('FAIL') && s.includes('SOFT')) return 'SOFTFAIL';
     if (s.includes('FAIL')) return 'FAIL';
@@ -52,35 +53,35 @@ export function adaptUploadResponseToModels(data: UploadResponse | any): {
   const verdictObj = data.verdict || {};
   const riskAssessment = data.risk_assessment || {};
   const riskScore = Number(verdictObj.risk_score ?? riskAssessment.risk_score ?? data.risk_score ?? 75);
-  const rawSeverity = (verdictObj.severity || riskAssessment.severity || data.risk_label || 'HIGH').toUpperCase();
+  const rawSeverity = safeStr(verdictObj.severity || riskAssessment.severity || data.risk_label || 'HIGH').toUpperCase();
   const severity = (['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'].includes(rawSeverity) ? rawSeverity : 'HIGH') as any;
-  const primaryThreat = (verdictObj.primary_category || data.threat_category || (riskScore > 80 ? 'PHISHING' : 'SUSPICIOUS')) as any;
-  const summaryExplanation = verdictObj.summary || riskAssessment.summary || `Automated forensic inspection identified risk score ${riskScore}/100 with authentication and routing signals evaluated.`;
+  const primaryThreat = safeStr(verdictObj.primary_category || data.threat_category || (riskScore > 80 ? 'PHISHING' : 'SUSPICIOUS')) as any;
+  const summaryExplanation = safeStr(verdictObj.summary || riskAssessment.summary || `Automated forensic inspection identified risk score ${riskScore}/100 with authentication and routing signals evaluated.`);
 
   // 4. Extract SMTP Relay Hops
   const smtpTrace = data.smtp_trace || {};
-  const rawHops = smtpTrace.received_chain || [];
+  const rawHops = Array.isArray(smtpTrace.received_chain) ? smtpTrace.received_chain : [];
   const relayHops: SmtpHop[] = rawHops.map((h: any, idx: number) => ({
     hopNumber: h.index ?? (idx + 1),
-    fromHost: h.from || h.from_host || 'unknown-origin',
-    fromIp: h.ip || '0.0.0.0',
-    byHost: h.by || h.by_host || 'mx.destination.net',
-    timestamp: h.timestamp || date,
-    delaySeconds: h.delay_seconds || 1,
+    fromHost: safeStr(h.from || h.from_host || 'unknown-origin'),
+    fromIp: safeStr(h.ip || '0.0.0.0'),
+    byHost: safeStr(h.by || h.by_host || 'mx.destination.net'),
+    timestamp: safeStr(h.timestamp || date),
+    delaySeconds: Number(h.delay_seconds || 1),
     isSuspicious: Boolean(h.is_suspicious || (h.ip && !h.is_private && idx === 0)),
-    suspiciousReason: h.is_suspicious ? 'External unauthenticated boundary node' : undefined,
-    country: h.country || (idx === 0 ? 'Netherlands' : 'United States'),
-    city: h.city || (idx === 0 ? 'Amsterdam' : 'Ashburn'),
-    asn: h.asn || 'AS49505',
-    org: h.org || 'Hosting Infrastructure'
+    suspiciousReason: h.is_suspicious ? safeStr(h.suspicious_reason || h.suspiciousReason || 'External unauthenticated boundary node') : undefined,
+    country: safeStr(h.country || (idx === 0 ? 'Netherlands' : 'United States')),
+    city: safeStr(h.city || (idx === 0 ? 'Amsterdam' : 'Ashburn')),
+    asn: safeStr(h.asn || 'AS49505'),
+    org: safeStr(h.org || 'Hosting Infrastructure')
   }));
 
-  const originatingIp = smtpTrace.earliest_node?.ip || (relayHops[0]?.fromIp) || data.indicators?.ips?.[0] || '185.220.101.42';
+  const originatingIp = safeStr(smtpTrace.earliest_node?.ip || (relayHops[0]?.fromIp) || data.indicators?.ips?.[0] || '185.220.101.42');
 
   // 5. Extract URLs
-  const rawUrls: any[] = data.indicators?.urls || [];
+  const rawUrls: any[] = Array.isArray(data.indicators?.urls) ? data.indicators.urls : [];
   const extractedUrls: ExtractedUrl[] = rawUrls.map((u: any, idx: number) => {
-    const urlStr = typeof u === 'string' ? u : (u.url || u.original_url || '');
+    const urlStr = safeStr(typeof u === 'string' ? u : (u.url || u.original_url || ''));
     const defanged = urlStr.replace('http://', 'hxxp://').replace('https://', 'hxxps://').replace(/\./g, '[.]');
     let urlDomain = 'unknown-url-domain.com';
     try {
@@ -102,19 +103,19 @@ export function adaptUploadResponseToModels(data: UploadResponse | any): {
   });
 
   // 6. Extract Attachments
-  const rawAttachments: any[] = data.indicators?.attachments || [];
+  const rawAttachments: any[] = Array.isArray(data.indicators?.attachments) ? data.indicators.attachments : [];
   const attachments: EmailAttachment[] = rawAttachments.map((a: any) => ({
-    name: a.filename || 'attachment.dat',
-    filename: a.filename || 'attachment.dat',
-    sizeBytes: a.size_bytes || a.size || 1024,
-    mimeType: a.content_type || 'application/octet-stream',
-    sha256: a.sha256 || 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-    isSuspicious: Boolean(a.is_suspicious || a.filename?.match(/\.(exe|scr|vbs|js|bat|xlsm|docm)$/i)),
-    threatVerdict: a.threat_verdict || (a.is_suspicious ? 'MALICIOUS_ATTACHMENT' : 'CLEAN')
+    name: safeStr(a.filename || 'attachment.dat'),
+    filename: safeStr(a.filename || 'attachment.dat'),
+    sizeBytes: Number(a.size_bytes || a.size || 1024),
+    mimeType: safeStr(a.content_type || 'application/octet-stream'),
+    sha256: safeStr(a.sha256 || 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'),
+    isSuspicious: Boolean(a.is_suspicious || (a.filename && String(a.filename).match(/\.(exe|scr|vbs|js|bat|xlsm|docm)$/i))),
+    threatVerdict: safeStr(a.threat_verdict || (a.is_suspicious ? 'MALICIOUS_ATTACHMENT' : 'CLEAN'))
   }));
 
-  // 7. Extract Findings
-  const forensicFindings = data.forensic_analysis?.findings || [];
+  // 7. Extract Findings with strict safeStr conversion
+  const forensicFindings = Array.isArray(data.forensic_analysis?.findings) ? data.forensic_analysis.findings : [];
   const findings: ExplainableFinding[] = [];
 
   if (spfStatus === 'FAIL' || dkimStatus === 'FAIL' || dmarcStatus === 'FAIL') {
@@ -144,7 +145,7 @@ export function adaptUploadResponseToModels(data: UploadResponse | any): {
       title: `Suspicious External Hyperlinks Extracted (${extractedUrls.length} found)`,
       category: 'URL',
       observedText: `Message contains links targeting external domains: ${extractedUrls.map(u => u.domain).slice(0, 2).join(', ')}`,
-      observedEvidence: extractedUrls[0]?.defangedUrl || '',
+      observedEvidence: safeStr(extractedUrls[0]?.defangedUrl || ''),
       inferenceText: 'Links route to unverified third-party infrastructure.',
       aiInference: 'Potential credential harvesting or redirection landing page.',
       severity: 'HIGH',
@@ -158,19 +159,19 @@ export function adaptUploadResponseToModels(data: UploadResponse | any): {
   forensicFindings.forEach((ff: any, i: number) => {
     findings.push({
       id: `ff-${i}-${Date.now()}`,
-      type: (ff.category || 'INFRASTRUCTURE') as any,
+      type: (safeStr(ff.category || 'INFRASTRUCTURE')) as any,
       nature: ff.type === 'FACT' ? 'OBSERVED' : 'INFERENCE',
-      title: ff.title || ff.description || 'Forensic Finding',
-      category: ff.category || 'FORENSIC',
-      observedText: ff.evidence || ff.description || '',
-      observedEvidence: ff.evidence || '',
-      inferenceText: ff.description || '',
-      aiInference: ff.description || '',
-      severity: (ff.severity || 'MEDIUM') as any,
-      level: (ff.severity || 'MEDIUM') as any,
-      scoreContribution: 15,
-      weight: 15,
-      confidence: ff.confidence || 90
+      title: safeStr(ff.title || ff.description || 'Forensic Finding'),
+      category: safeStr(ff.category || 'FORENSIC'),
+      observedText: safeStr(ff.evidence || ff.description || 'Observed forensic indicator'),
+      observedEvidence: safeStr(ff.evidence || ''),
+      inferenceText: safeStr(ff.description || 'Forensic evaluation context'),
+      aiInference: safeStr(ff.description || 'Evaluated threat context'),
+      severity: (safeStr(ff.severity || 'MEDIUM').toUpperCase()) as any,
+      level: (safeStr(ff.severity || 'MEDIUM').toUpperCase()) as any,
+      scoreContribution: Number(ff.score_contribution || 15),
+      weight: Number(ff.weight || 15),
+      confidence: Number(ff.confidence || 90)
     });
   });
 
@@ -373,13 +374,13 @@ export function adaptUploadResponseToModels(data: UploadResponse | any): {
   };
 
   // 13. Construct CryptographicEvidence
-  const evidenceSha256 = data.sha256 || data.evidence?.file_sha256 || '724a0b67e3203d274c3c3a63626254662e2d37bda5797cc23868e94441241655';
+  const evidenceSha256 = safeStr(data.sha256 || data.evidence?.file_sha256 || '724a0b67e3203d274c3c3a63626254662e2d37bda5797cc23868e94441241655');
   const evidenceRecord: CryptographicEvidence = {
     caseId: caseId,
     emailId: emailId,
     rawEmailSha256: evidenceSha256,
-    parsedMetadataSha256: data.evidence?.parsed_data_sha256 || evidenceSha256,
-    analysisArtifactSha256: data.evidence?.parsed_data_sha256 || evidenceSha256,
+    parsedMetadataSha256: safeStr(data.evidence?.parsed_data_sha256 || evidenceSha256),
+    analysisArtifactSha256: safeStr(data.evidence?.parsed_data_sha256 || evidenceSha256),
     merkleRootHash: evidenceSha256,
     timestamp: nowIso,
     isTamperEvident: false,

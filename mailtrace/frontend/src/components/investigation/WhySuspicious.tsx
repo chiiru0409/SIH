@@ -1,6 +1,7 @@
 import React from 'react';
 import { ExplainableFinding } from '../../types/investigation';
 import { Sparkles, Eye } from 'lucide-react';
+import { safeStr } from '../../lib/utils';
 
 interface WhySuspiciousProps {
   findings?: ExplainableFinding[];
@@ -30,16 +31,16 @@ export const WhySuspicious: React.FC<WhySuspiciousProps> = ({ findings = [] }) =
           </div>
         ) : (
           safeFindings.map((item, index) => {
-            const severity = item.severity || item.level || 'MEDIUM';
-            const scoreImpact = item.scoreContribution ?? item.weight ?? 15;
-            const title = item.title || 'Observed Threat Signal';
-            const category = item.category || item.type || 'FORENSIC';
-            const observed = item.observedText || item.observedEvidence || 'Observed anomalous forensic attribute in email message.';
-            const inference = item.inferenceText || item.aiInference || 'Evaluated threat pattern contributing to risk score.';
+            const severity = safeStr(item.severity || item.level || 'MEDIUM').toUpperCase();
+            const scoreImpact = Number(item.scoreContribution ?? item.weight ?? 15);
+            const title = safeStr(item.title || 'Observed Threat Signal');
+            const category = safeStr(item.category || item.type || 'FORENSIC');
+            const observed = safeStr(item.observedText || item.observedEvidence || 'Observed anomalous forensic attribute in email message.');
+            const inference = safeStr(item.inferenceText || item.aiInference || 'Evaluated threat pattern contributing to risk score.');
 
             return (
               <div
-                key={item.id || index}
+                key={safeStr(item.id || index)}
                 className="p-4 rounded-lg bg-slate-900/90 border border-slate-800/90 hover:border-slate-700 transition-colors space-y-2"
               >
                 <div className="flex items-start justify-between gap-3">

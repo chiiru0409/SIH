@@ -5,6 +5,28 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function safeStr(val: any, fallback: string = ''): string {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+  if (Array.isArray(val)) {
+    return val.map(item => typeof item === 'object' ? JSON.stringify(item) : String(item)).join(', ');
+  }
+  if (typeof val === 'object') {
+    try {
+      // If it's a simple key-value object, format it cleanly
+      const entries = Object.entries(val);
+      if (entries.length > 0 && entries.every(([_, v]) => typeof v !== 'object')) {
+        return entries.map(([k, v]) => `${k}: ${v}`).join('; ');
+      }
+      return JSON.stringify(val);
+    } catch {
+      return String(val);
+    }
+  }
+  return String(val);
+}
+
 export function formatBytes(bytes: number, decimals: number = 2): string {
   if (bytes === 0) return '0 Bytes';
   const k = 1024;
@@ -40,6 +62,13 @@ export function truncateHash(hash?: any, length: number = 8): string {
   return `${str.slice(0, length)}…${str.slice(-length)}`;
 }
 
+export async function calculateSha256(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export function getSeverityBadgeStyles(severity?: string | null): {
   bg: string;
   text: string;
@@ -60,36 +89,29 @@ export function getSeverityBadgeStyles(severity?: string | null): {
         bg: 'bg-orange-950/50',
         text: 'text-orange-400',
         border: 'border-orange-500/40',
-        glow: 'shadow-[0_0_12px_rgba(249,115,22,0.2)]',
+        glow: 'shadow-[0_0_12px_rgba(249,115,22,0.25)]',
       };
     case 'MEDIUM':
       return {
         bg: 'bg-amber-950/50',
         text: 'text-amber-400',
         border: 'border-amber-500/40',
-        glow: 'shadow-[0_0_12px_rgba(245,158,11,0.15)]',
+        glow: 'shadow-[0_0_12px_rgba(245,158,11,0.25)]',
       };
     case 'LOW':
       return {
-        bg: 'bg-emerald-950/50',
-        text: 'text-emerald-400',
-        border: 'border-emerald-500/40',
-        glow: 'shadow-[0_0_12px_rgba(16,185,129,0.15)]',
+        bg: 'bg-cyan-950/50',
+        text: 'text-cyan-400',
+        border: 'border-cyan-500/40',
+        glow: 'shadow-[0_0_12px_rgba(6,182,212,0.25)]',
       };
     case 'INFO':
     default:
       return {
-        bg: 'bg-slate-900/60',
-        text: 'text-cyan-400',
-        border: 'border-cyan-500/30',
-        glow: 'shadow-[0_0_8px_rgba(6,182,212,0.15)]',
+        bg: 'bg-slate-900/50',
+        text: 'text-slate-400',
+        border: 'border-slate-700/40',
+        glow: '',
       };
   }
-}
-
-export async function calculateSha256(file: File): Promise<string> {
-  const buffer = await file.arrayBuffer();
-  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }

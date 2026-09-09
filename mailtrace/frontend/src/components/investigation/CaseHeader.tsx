@@ -1,19 +1,17 @@
 import React from 'react';
 import {
   ShieldAlert,
-  ShieldCheck,
   Ban,
   FileText,
   Fingerprint,
-  Share2,
   Copy,
   Clock,
-  Mail,
   Check
 } from 'lucide-react';
 import { InvestigationCase } from '../../types/investigation';
 import { Badge } from '../common/Badge';
 import { useInvestigation } from '../../context/InvestigationContext';
+import { safeStr } from '../../lib/utils';
 
 interface CaseHeaderProps {
   investigationCase: InvestigationCase;
@@ -29,23 +27,38 @@ export const CaseHeader: React.FC<CaseHeaderProps> = ({
   const { addResponseAction, updateCaseStatus } = useInvestigation();
   const [copied, setCopied] = React.useState(false);
 
+  const caseId = safeStr(investigationCase.id || 'CASE-UNKNOWN');
+  const recipient = safeStr(investigationCase.recipient || 'soc-target@enterprise.com');
+  const sender = safeStr(investigationCase.sender || 'unknown@domain.com');
+  const subject = safeStr(investigationCase.subject || 'Forensic Analyzed Message');
+  const status = safeStr(investigationCase.status || 'INVESTIGATING');
+  const severity = safeStr(investigationCase.verdict?.severity || 'HIGH').toUpperCase();
+  const primaryThreat = safeStr(investigationCase.verdict?.primaryThreat || 'THREAT');
+
+  let dateDisplay = 'Timestamp Recorded';
+  try {
+    dateDisplay = new Date(investigationCase.timestamp || Date.now()).toUTCString();
+  } catch {
+    dateDisplay = safeStr(investigationCase.timestamp || 'Timestamp Recorded');
+  }
+
   const handleQuarantine = () => {
     addResponseAction({
-      caseId: investigationCase.id,
+      caseId: caseId,
       actionType: 'QUARANTINE',
-      target: investigationCase.recipient,
+      target: recipient,
       status: 'EXECUTED',
       executedBy: 'SOC Analyst Manual Action',
-      reason: `Manual quarantine applied to ${investigationCase.id} due to ${investigationCase.verdict.primaryThreat}`,
+      reason: `Manual quarantine applied to ${caseId} due to ${primaryThreat}`,
       impactScore: 85
     });
-    updateCaseStatus(investigationCase.id, 'CONTAINED');
+    updateCaseStatus(caseId, 'CONTAINED');
   };
 
   const handleBlockDomain = () => {
-    const domain = investigationCase.sender.split('@')[1] || 'sender-domain';
+    const domain = sender.includes('@') ? sender.split('@')[1] : 'sender-domain';
     addResponseAction({
-      caseId: investigationCase.id,
+      caseId: caseId,
       actionType: 'BLOCK_DOMAIN',
       target: domain,
       status: 'EXECUTED',
@@ -56,7 +69,7 @@ export const CaseHeader: React.FC<CaseHeaderProps> = ({
   };
 
   const handleCopyId = () => {
-    navigator.clipboard.writeText(investigationCase.id);
+    navigator.clipboard.writeText(caseId);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
@@ -70,35 +83,35 @@ export const CaseHeader: React.FC<CaseHeaderProps> = ({
               onClick={handleCopyId}
               className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-700/60 text-cyan-300 font-mono text-xs font-bold hover:bg-cyan-900/80 transition-colors"
             >
-              <span>{investigationCase.id}</span>
+              <span>{caseId}</span>
               {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
             </button>
 
-            <Badge variant="severity" severity={investigationCase.verdict.severity}>
-              {investigationCase.verdict.severity}
+            <Badge variant="severity" severity={severity as any}>
+              {severity}
             </Badge>
 
             <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-800">
-              Status: <span className="text-amber-400 font-bold">{investigationCase.status}</span>
+              Status: <span className="text-amber-400 font-bold">{status}</span>
             </span>
 
             <div className="flex items-center gap-1 text-xs font-mono text-slate-400">
               <Clock className="w-3.5 h-3.5" />
-              <span>{new Date(investigationCase.timestamp).toUTCString()}</span>
+              <span>{dateDisplay}</span>
             </div>
           </div>
 
           <h2 className="text-lg font-bold text-slate-100 mt-2 font-sans">
-            {investigationCase.subject}
+            {subject}
           </h2>
 
           <div className="flex flex-wrap items-center gap-4 mt-1.5 text-xs font-mono text-slate-400">
             <div>
-              From: <span className="text-slate-200 font-semibold">{investigationCase.sender}</span>
+              From: <span className="text-slate-200 font-semibold">{sender}</span>
             </div>
             <span>•</span>
             <div>
-              To: <span className="text-slate-200">{investigationCase.recipient}</span>
+              To: <span className="text-slate-200">{recipient}</span>
             </div>
           </div>
         </div>
