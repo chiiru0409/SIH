@@ -97,13 +97,13 @@ export interface ForensicAnalysisResult {
     error?: string;
   };
   findings: ForensicFinding[];
-  facts: ForensicFinding[];
-  inferences: ForensicFinding[];
+  facts: (ForensicFinding | string)[];
+  inferences: (ForensicFinding | string)[];
   limitations: string[];
 }
 
 // ------------------------------------------------------------------ //
-//  3. Threat Analysis Schemas (Step 4)                               //
+//  3. Threat Analysis & Funnel of Fidelity Schemas (Step 4)          //
 // ------------------------------------------------------------------ //
 
 export interface ThreatSignals {
@@ -126,6 +126,53 @@ export interface ThreatIndicator {
   evidence?: string | null;
 }
 
+export interface CompoundRuleFinding {
+  rule_id: string;
+  name: string;
+  fidelity: string;
+  category: string;
+  mitre_technique: string;
+  signals_combined: string[];
+  reason: string;
+}
+
+export interface MitreAttackTechnique {
+  id: string;
+  technique_id?: string;
+  name: string;
+  tactic: string;
+  url: string;
+  description: string;
+}
+
+export interface SaasAbuseFinding {
+  platform: string;
+  service_id: string;
+  url: string;
+  description: string;
+}
+
+export interface FunnelOfFidelity {
+  fidelity_tier: string;
+  confidence_index: number;
+  tier_1_observed_facts: string[];
+  tier_2_behavioral_signals: {
+    indicator: string;
+    category: string;
+    weight: number;
+    severity: string;
+    description: string;
+    evidence: string;
+  }[];
+  tier_3_compound_detections: CompoundRuleFinding[];
+  tier_4_actionable_verdict: {
+    verdict: string;
+    confidence: number;
+    compounds_triggered_count: number;
+    requires_quarantine: boolean;
+  };
+}
+
 export interface ThreatAnalysisResult {
   primary_threat: string;
   secondary_threats: string[];
@@ -140,6 +187,10 @@ export interface ThreatAnalysisResult {
   };
   analysis_method?: string;
   model_info?: string;
+  saas_abuse?: SaasAbuseFinding[];
+  compound_rules?: CompoundRuleFinding[];
+  mitre_attack?: MitreAttackTechnique[];
+  funnel_of_fidelity?: FunnelOfFidelity;
 }
 
 // ------------------------------------------------------------------ //
@@ -313,7 +364,7 @@ export interface CaseDetail {
 }
 
 // ------------------------------------------------------------------ //
-//  8. Campaign & Graph Schemas (Step 7)                              //
+//  8. Campaign, Graph & Threat Hunting Schemas (Step 7)              //
 // ------------------------------------------------------------------ //
 
 export type NodeType = 'CASE' | 'EMAIL' | 'SENDER' | 'DOMAIN' | 'URL' | 'IP' | 'ASN' | 'CAMPAIGN';
@@ -334,7 +385,11 @@ export type RelationshipType =
   | 'ANNOUNCED_BY'
   | 'BELONGS_TO'
   | 'CORRELATED_WITH'
-  | 'OBSERVED_IP';
+  | 'OBSERVED_IP'
+  | 'SHARES_SENDER_DOMAIN'
+  | 'SHARES_RESOLVED_PUBLIC_IP'
+  | 'SHARES_PAYLOAD_URL_HASH'
+  | 'SHARES_ASN';
 
 export interface GraphEdge {
   source: string;
@@ -354,6 +409,7 @@ export interface SharedIndicator {
   type: 'url' | 'ip' | 'domain' | 'sender' | 'asn' | string;
   value: string;
   weight: number;
+  semantic_rel?: string | null;
   description?: string | null;
 }
 
@@ -392,6 +448,57 @@ export interface CaseCorrelationDetailResponse {
   campaign: CampaignCluster | null;
   graph: InvestigationGraph;
   limitations: string[];
+}
+
+export interface ThreatHuntResultItem {
+  hypothesis_id: string;
+  title: string;
+  description: string;
+  rationale: string;
+  mitre_technique: string;
+  total_matches: number;
+  matched_cases: {
+    case_id: string;
+    filename: string;
+    sender?: string | null;
+    sender_display?: string | null;
+    risk_score: number | null;
+    risk_label: string | null;
+    matching_rationale: string;
+  }[];
+  matched_indicators: {
+    type: string;
+    value: string;
+    cases_affected?: number;
+  }[];
+  pivot_recommendations: string[];
+  confidence: number;
+}
+
+export interface ThreatHuntResponse {
+  status: string;
+  hunt_query: string;
+  total_cases_analyzed: number;
+  hypotheses_evaluated: number;
+  results: ThreatHuntResultItem[];
+}
+
+export interface IoCItem {
+  type: string;
+  value: string;
+  context: string;
+  confidence: string;
+  mitre_tactic: string;
+}
+
+export interface IoCExportResponse {
+  case_id: string;
+  filename: string;
+  risk_label: string;
+  total_iocs: number;
+  iocs: IoCItem[];
+  csv_export: string;
+  stix_patterns: string[];
 }
 
 // ------------------------------------------------------------------ //
@@ -497,7 +604,7 @@ export interface BlockchainAnchorResponse {
 }
 
 // ------------------------------------------------------------------ //
-//  6. Enterprise Ecosystem Schemas (Sentaro / GreatHorn / Mimecast)  //
+//  11. Enterprise Ecosystem Schemas (Sentaro / GreatHorn / Mimecast) //
 // ------------------------------------------------------------------ //
 
 export interface WarningBannerInfo {
@@ -518,6 +625,37 @@ export interface BehavioralRelationshipInfo {
   is_first_time_sender: boolean;
   is_freemail_provider: boolean;
   warning_banner: WarningBannerInfo;
+}
+
+export interface IncidentPlaybookPhase {
+  title: string;
+  actions: string[];
+}
+
+export interface IncidentPlaybook {
+  playbook_id: string;
+  threat_category: string;
+  phases: {
+    phase1_containment: IncidentPlaybookPhase;
+    phase2_preservation: IncidentPlaybookPhase;
+    phase3_hunting: IncidentPlaybookPhase;
+    phase4_eradication: IncidentPlaybookPhase;
+  };
+  soc_readiness_level: string;
+}
+
+export interface PolicyEvaluationResult {
+  status: string;
+  recommended_action: string;
+  action_reason: string;
+  is_quarantined: boolean;
+  triggered_rules: {
+    policy_id: string;
+    name: string;
+    action: string;
+    severity: string;
+  }[];
+  incident_playbook?: IncidentPlaybook;
 }
 
 export interface PolicyRuleItem {

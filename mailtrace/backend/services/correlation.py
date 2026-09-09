@@ -1,24 +1,30 @@
 """
-services/correlation.py — MAILTRACE Campaign Correlation & Investigation Graph Engine.
+services/correlation.py — MAILTRACE Campaign Correlation, Investigation Graph & Threat Hunting Engine.
 
 Primary Entry Points:
     build_campaign_correlation(cases: list[dict[str, Any]]) -> dict[str, Any]
     get_case_correlation_subgraph(case_id: str, correlation_overview: dict[str, Any]) -> dict[str, Any]
+    execute_threat_hunt(cases: list[dict[str, Any]], hypothesis_type: str, query: str = "") -> dict[str, Any]
+    export_case_iocs(case: dict[str, Any], format_type: str = "json") -> dict[str, Any]
 
 Architecture:
     1. Entity Extraction & Canonical Normalization (Senders, Domains, URLs, Public IPs, ASNs).
     2. Private/Loopback IP Filter (Ensures internal networks NEVER create external correlations).
     3. Inverted Index Candidate Discovery (O(1) lookup avoiding unnecessary O(N^2) pairwise comparisons).
     4. Deterministic Pairwise Correlation Scoring (Weights: URL=40, Public IP=35, Domain=25, Sender=25, ASN=5).
-    5. NetworkX Graph Representation (Nodes: CASE, EMAIL, SENDER, DOMAIN, URL, IP, ASN, CAMPAIGN).
-    6. Connected Components Clustering (Identifies campaign clusters of correlated cases).
-    7. Subgraph Extraction for Case-Specific Investigation Views.
-    8. Strict Attribution Guardrails (Correlation != Human Attacker Attribution).
+    5. Semantic Edge Classification (SHARES_RESOLVED_PUBLIC_IP, SHARES_PAYLOAD_URL_HASH, SHARES_SENDER_DOMAIN, SHARES_ASN).
+    6. NetworkX Graph Representation (Nodes: CASE, EMAIL, SENDER, DOMAIN, URL, IP, ASN, CAMPAIGN).
+    7. Connected Components Clustering (Identifies campaign clusters of correlated cases).
+    8. Hypothesis-Driven Threat Hunting (Huntpedia / Hunter's Handbook methodology adapted for email forensics).
+    9. Structured Multi-Format IoC Exporter (JSON, CSV, STIX-pattern ready).
+    10. Strict Attribution Guardrails (Correlation != Human Attacker Attribution).
 """
 
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
 import logging
 from typing import Any, Optional
 import networkx as nx
@@ -50,6 +56,39 @@ CORRELATION_LIMITATIONS = [
     "Private, loopback, and reserved IP addresses are excluded from correlation indexes.",
     "Campaign clusters reflect empirical indicator overlap and warrant further forensic verification.",
 ]
+
+HUNT_HYPOTHESIS_DEFINITIONS = {
+    "SHARED_INFRASTRUCTURE": {
+        "title": "Cross-Sender Infrastructure Reuse",
+        "description": "Adversaries often reuse sending IP addresses, hosting infrastructure, or ASN blocks across disparate sender identities.",
+        "rationale": "Identifies coordinated campaigns attempting to evade sender-based blocks by rotating sender identities while using the same delivery infrastructure.",
+        "mitre_technique": "T1583.001 - Acquire Infrastructure: Domains / IPs",
+    },
+    "EXECUTIVE_SPOOFING": {
+        "title": "VIP / Executive Display-Name Impersonation",
+        "description": "Targeted BEC attacks impersonating high-level executives via external freemail or lookalike domains.",
+        "rationale": "Flags emails where display names mimic internal executives while originating from external, unauthenticated sources.",
+        "mitre_technique": "T1566.002 - Spearphishing Link / T1036.005 - Masquerading",
+    },
+    "SAAS_CLOUD_ABUSE": {
+        "title": "Living off Legitimate Cloud Services (LOLServices)",
+        "description": "Adversaries hosting malicious forms, credential lures, or redirectors on trusted cloud providers.",
+        "rationale": "Detects weaponization of Google Forms, Canva, Notion, SharePoint, OneDrive, Firebase to bypass domain reputation filters.",
+        "mitre_technique": "T1566.002 - Spearphishing Link (Cloud-hosted lure)",
+    },
+    "CREDENTIAL_CAMPAIGNS": {
+        "title": "Coordinated Credential Harvesting Campaigns",
+        "description": "Mass or targeted credential theft campaigns utilizing urgent lures and external authentication landing pages.",
+        "rationale": "Correlates emails exhibiting credential harvesting intent combined with urgent linguistic markers and external redirects.",
+        "mitre_technique": "T1566.002 - Spearphishing Link / T1056.001 - Keylogging & Credential Input",
+    },
+    "DMARC_BYPASS_ATTEMPTS": {
+        "title": "Authentication Spoofing & DMARC Failure Campaigns",
+        "description": "Emails with failed SPF/DKIM/DMARC authentication attempting to masquerade as trusted corporate entities.",
+        "rationale": "Pinpoints unauthenticated inbound traffic demanding financial or sensitive operational actions.",
+        "mitre_technique": "T1566.001 - Spearphishing Attachment / T1534 - Internal Spearphishing",
+    },
+}
 
 
 # ================================================================== #
@@ -88,7 +127,7 @@ def _canonical_asn(asn_str: str | None) -> str | None:
 def extract_case_entities(case: dict[str, Any]) -> dict[str, Any]:
     """
     Extract and normalize all correlateable entities from an analyzed case dict.
-    Returns normalized sender, domains, public IPs, URLs, and ASNs.
+    Returns normalized sender, display name, domains, public IPs, URLs, ASNs, and raw case metadata.
     """
     case_id = str(case.get("id") or case.get("case_id") or "")
     filename = str(case.get("original_filename") or case.get("filename") or "case.eml")
@@ -97,15 +136,20 @@ def extract_case_entities(case: dict[str, Any]) -> dict[str, Any]:
     domain_intel = case.get("domain_intel") or {}
     url_intel = case.get("url_intel") or {}
     forensic = case.get("forensic_analysis") or {}
+    ai_threat = case.get("ai_analysis") or case.get("threat_analysis") or {}
 
-    # 1. Sender
+    # 1. Sender & Display Name
     sender_email = None
+    sender_display = None
     if isinstance(parsed, dict):
         sender_obj = parsed.get("sender")
         if isinstance(sender_obj, dict):
             sender_email = _normalize_email(sender_obj.get("email"))
+            sender_display = sender_obj.get("display_name")
         if not sender_email:
             sender_email = _normalize_email(parsed.get("from_address") or parsed.get("from"))
+        if not sender_display and isinstance(parsed.get("sender"), dict):
+            sender_display = parsed["sender"].get("display_name")
 
     # 2. Domains (Registrable domains)
     domains: set[str] = set()
@@ -170,19 +214,44 @@ def extract_case_entities(case: dict[str, Any]) -> dict[str, Any]:
                 u_hash = _normalize_url_hash(u_str)
                 urls[u_hash] = u_str.strip()
 
+    # 5. Attachments
+    attachments = []
+    if isinstance(parsed, dict):
+        for att in parsed.get("attachments", []):
+            if isinstance(att, dict):
+                attachments.append({
+                    "filename": att.get("filename"),
+                    "sha256": att.get("sha256"),
+                    "content_type": att.get("content_type"),
+                    "size_bytes": att.get("size_bytes"),
+                })
+
     risk_score = case.get("risk_score")
     risk_label = case.get("risk_label") or case.get("severity") or "UNKNOWN"
+
+    # Threat and Forensic Findings Metadata for Threat Hunting
+    findings = (forensic.get("findings") if isinstance(forensic, dict) else []) or []
+    primary_intent = str(ai_threat.get("primary_intent") or ai_threat.get("primary_threat") or "").upper()
+    saas_abuse = ai_threat.get("saas_abuse") or {}
+    compound_rules = ai_threat.get("compound_rules") or []
 
     return {
         "case_id": case_id,
         "filename": filename,
         "sender": sender_email,
+        "sender_display": sender_display,
         "domains": sorted(list(domains)),
         "public_ips": sorted(list(public_ips)),
         "urls": urls,
         "asns": sorted(list(asns)),
+        "attachments": attachments,
         "risk_score": risk_score,
         "risk_label": risk_label,
+        "primary_intent": primary_intent,
+        "findings": findings,
+        "saas_abuse": saas_abuse,
+        "compound_rules": compound_rules,
+        "raw_parsed": parsed,
     }
 
 
@@ -254,6 +323,7 @@ def compute_pairwise_correlations(
                 "type": "url",
                 "value": u_sample,
                 "weight": w,
+                "semantic_rel": "SHARES_PAYLOAD_URL_HASH",
                 "description": f"Exact shared URL: {u_sample[:60]}",
             })
 
@@ -266,6 +336,7 @@ def compute_pairwise_correlations(
                 "type": "ip",
                 "value": ip,
                 "weight": w,
+                "semantic_rel": "SHARES_RESOLVED_PUBLIC_IP",
                 "description": f"Shared public transmitting IP infrastructure: {ip}",
             })
 
@@ -278,6 +349,7 @@ def compute_pairwise_correlations(
                 "type": "domain",
                 "value": dom,
                 "weight": w,
+                "semantic_rel": "SHARES_SENDER_DOMAIN",
                 "description": f"Shared registrable domain: {dom}",
             })
 
@@ -289,6 +361,7 @@ def compute_pairwise_correlations(
                 "type": "sender",
                 "value": case_a["sender"],
                 "weight": w,
+                "semantic_rel": "SHARES_SENDER_IDENTITY",
                 "description": f"Identical sender address: {case_a['sender']}",
             })
 
@@ -301,6 +374,7 @@ def compute_pairwise_correlations(
                 "type": "asn",
                 "value": asn,
                 "weight": w,
+                "semantic_rel": "SHARES_ASN",
                 "description": f"Shared autonomous system routing network: {asn}",
             })
 
@@ -439,13 +513,14 @@ def build_investigation_graph_and_clusters(
             for ip in c["public_ips"]:
                 _add_edge(f"ip:{ip}", asn_node_id, "ANNOUNCED_BY", 1.0, "step5_intelligence")
 
-    # 2. Add Cross-Case Correlation Edges
+    # 2. Add Cross-Case Correlation Edges with Enhanced Semantic Rel Names
     for corr in correlations:
         cid_a = corr["case_a"]
         cid_b = corr["case_b"]
         score = corr["correlation_score"]
         case_cluster_graph.add_edge(cid_a, cid_b, weight=score)
 
+        # Master cross-case edge
         _add_edge(
             f"case:{cid_a}",
             f"case:{cid_b}",
@@ -668,4 +743,301 @@ def get_case_correlation_subgraph(
         "campaign": matching_campaign,
         "graph": subgraph,
         "limitations": CORRELATION_LIMITATIONS,
+    }
+
+
+# ================================================================== #
+#  Hypothesis-Driven Threat Hunting Engine                           #
+# ================================================================== #
+
+def execute_threat_hunt(
+    cases: list[dict[str, Any]],
+    hypothesis_type: str = "ALL",
+    query: str = "",
+) -> dict[str, Any]:
+    """
+    Executes a structured hypothesis-driven threat hunt across all ingested email cases.
+    Supported hypothesis types:
+      - 'ALL'
+      - 'SHARED_INFRASTRUCTURE'
+      - 'EXECUTIVE_SPOOFING'
+      - 'SAAS_CLOUD_ABUSE'
+      - 'CREDENTIAL_CAMPAIGNS'
+      - 'DMARC_BYPASS_ATTEMPTS'
+      - 'CUSTOM_INDICATOR_PIVOT'
+    """
+    extracted_cases = [extract_case_entities(c) for c in cases if isinstance(c, dict)]
+    hyp_upper = hypothesis_type.upper()
+
+    results: list[dict[str, Any]] = []
+
+    target_hypotheses = (
+        list(HUNT_HYPOTHESIS_DEFINITIONS.keys())
+        if hyp_upper in ("ALL", "")
+        else [hyp_upper] if hyp_upper in HUNT_HYPOTHESIS_DEFINITIONS else ["CUSTOM_INDICATOR_PIVOT"]
+    )
+
+    for hyp in target_hypotheses:
+        matched_cases: list[dict[str, Any]] = []
+        pivot_recommendations: list[str] = []
+        matched_indicators: list[dict[str, Any]] = []
+
+        if hyp == "SHARED_INFRASTRUCTURE":
+            # Identify cases sharing public IP or ASN but having distinct senders
+            ip_map: dict[str, list[dict[str, Any]]] = {}
+            for c in extracted_cases:
+                for ip in c["public_ips"]:
+                    ip_map.setdefault(ip, []).append(c)
+
+            for ip, mcases in ip_map.items():
+                if len(mcases) >= 2:
+                    distinct_senders = {mc["sender"] for mc in mcases if mc["sender"]}
+                    for mc in mcases:
+                        if mc["case_id"] not in [m["case_id"] for m in matched_cases]:
+                            matched_cases.append({
+                                "case_id": mc["case_id"],
+                                "filename": mc["filename"],
+                                "sender": mc["sender"],
+                                "risk_score": mc["risk_score"],
+                                "risk_label": mc["risk_label"],
+                                "matching_rationale": f"Shares public sending IP {ip} across {len(distinct_senders)} distinct sender identities.",
+                            })
+                    matched_indicators.append({"type": "ip", "value": ip, "cases_affected": len(mcases)})
+                    pivot_recommendations.append(f"Pivot on sending IP {ip} to identify all downstream recipient targets.")
+
+        elif hyp == "EXECUTIVE_SPOOFING":
+            # Identify cases with display name spoofing or BEC compound rules
+            for c in extracted_cases:
+                has_spoof = any(
+                    "DISPLAY-NAME" in str(f.get("category", "")).upper() or "SPOOF" in str(f.get("title", "")).upper()
+                    for f in c["findings"]
+                ) or any("BEC" in r.get("rule_id", "") or "VIP" in r.get("name", "").upper() for r in c["compound_rules"])
+                
+                if has_spoof or "BEC" in c["primary_intent"]:
+                    matched_cases.append({
+                        "case_id": c["case_id"],
+                        "filename": c["filename"],
+                        "sender": c["sender"],
+                        "sender_display": c["sender_display"],
+                        "risk_score": c["risk_score"],
+                        "risk_label": c["risk_label"],
+                        "matching_rationale": f"VIP display name spoofing detected for sender '{c['sender_display'] or c['sender']}'.",
+                    })
+                    if c["sender"]:
+                        matched_indicators.append({"type": "sender", "value": c["sender"], "cases_affected": 1})
+            if matched_cases:
+                pivot_recommendations.append("Audit all incoming communications referencing VIP executive display names from external domains.")
+
+        elif hyp == "SAAS_CLOUD_ABUSE":
+            # Identify cases abusing trusted SaaS platforms
+            for c in extracted_cases:
+                saas = c.get("saas_abuse") or {}
+                if saas.get("detected"):
+                    services = ", ".join(saas.get("services", []))
+                    matched_cases.append({
+                        "case_id": c["case_id"],
+                        "filename": c["filename"],
+                        "sender": c["sender"],
+                        "risk_score": c["risk_score"],
+                        "risk_label": c["risk_label"],
+                        "matching_rationale": f"Living-off-Legitimate-Services lure detected using {services} ({saas.get('explanation')}).",
+                    })
+                    for u in saas.get("abuse_urls", []):
+                        matched_indicators.append({"type": "url", "value": u, "cases_affected": 1})
+            if matched_cases:
+                pivot_recommendations.append("Inspect enterprise cloud form submissions and defang external cloud-hosted redirectors.")
+
+        elif hyp == "CREDENTIAL_CAMPAIGNS":
+            # Identify credential harvesting intents with high urgency
+            for c in extracted_cases:
+                is_cred = "CREDENTIAL" in c["primary_intent"] or any(
+                    "CREDENTIAL" in str(f.get("category", "")).upper() or "HARVEST" in str(f.get("title", "")).upper()
+                    for f in c["findings"]
+                )
+                if is_cred:
+                    matched_cases.append({
+                        "case_id": c["case_id"],
+                        "filename": c["filename"],
+                        "sender": c["sender"],
+                        "risk_score": c["risk_score"],
+                        "risk_label": c["risk_label"],
+                        "matching_rationale": f"High-confidence credential harvesting lure with actionable phishing links.",
+                    })
+                    for u_hash, u_str in c["urls"].items():
+                        matched_indicators.append({"type": "url", "value": u_str, "cases_affected": 1})
+            if matched_cases:
+                pivot_recommendations.append("Submit identified credential harvesting landing URLs to endpoint and web gateway blocklists.")
+
+        elif hyp == "DMARC_BYPASS_ATTEMPTS":
+            # Identify cases with failed authentication and elevated risk
+            for c in extracted_cases:
+                has_auth_fail = any(
+                    f.get("severity") in ("CRITICAL", "HIGH") and "AUTHENTICATION" in str(f.get("category", "")).upper()
+                    for f in c["findings"]
+                )
+                if has_auth_fail and float(c["risk_score"] or 0) >= 50:
+                    matched_cases.append({
+                        "case_id": c["case_id"],
+                        "filename": c["filename"],
+                        "sender": c["sender"],
+                        "risk_score": c["risk_score"],
+                        "risk_label": c["risk_label"],
+                        "matching_rationale": "DMARC/SPF authentication failure on external message with elevated risk signals.",
+                    })
+            if matched_cases:
+                pivot_recommendations.append("Enforce strict DMARC 'p=reject' policy on enterprise receiving mail gateways.")
+
+        elif hyp == "CUSTOM_INDICATOR_PIVOT" and query:
+            q_clean = query.strip().lower()
+            for c in extracted_cases:
+                match_reason = None
+                if c["sender"] and q_clean in c["sender"].lower():
+                    match_reason = f"Sender matches search term '{query}'"
+                elif any(q_clean in d.lower() for d in c["domains"]):
+                    match_reason = f"Domain matches search term '{query}'"
+                elif any(q_clean in ip for ip in c["public_ips"]):
+                    match_reason = f"Public IP matches search term '{query}'"
+                elif any(q_clean in u.lower() for u in c["urls"].values()):
+                    match_reason = f"URL matches search term '{query}'"
+                elif any(q_clean in asn.lower() for asn in c["asns"]):
+                    match_reason = f"ASN matches search term '{query}'"
+
+                if match_reason:
+                    matched_cases.append({
+                        "case_id": c["case_id"],
+                        "filename": c["filename"],
+                        "sender": c["sender"],
+                        "risk_score": c["risk_score"],
+                        "risk_label": c["risk_label"],
+                        "matching_rationale": match_reason,
+                    })
+            pivot_recommendations.append(f"Pivot analysis on indicator '{query}' across historical SIEM archives.")
+
+        meta = HUNT_HYPOTHESIS_DEFINITIONS.get(hyp, {
+            "title": f"Custom Indicator Pivot: {query or 'General'}",
+            "description": f"Targeted search across all email indicators for query: {query}",
+            "rationale": "Allows SOC analysts to pivot freely across known IoCs discovered during live incident investigations.",
+            "mitre_technique": "T1071.001 - Web Protocols / T1566 - Phishing",
+        })
+
+        results.append({
+            "hypothesis_id": hyp,
+            "title": meta["title"],
+            "description": meta["description"],
+            "rationale": meta["rationale"],
+            "mitre_technique": meta["mitre_technique"],
+            "total_matches": len(matched_cases),
+            "matched_cases": matched_cases,
+            "matched_indicators": matched_indicators[:10],
+            "pivot_recommendations": pivot_recommendations[:5],
+            "confidence": 0.85 if matched_cases else 0.0,
+        })
+
+    return {
+        "status": "COMPLETED",
+        "hunt_query": query,
+        "total_cases_analyzed": len(extracted_cases),
+        "hypotheses_evaluated": len(results),
+        "results": results,
+    }
+
+
+# ================================================================== #
+#  Structured IoC Exporter                                            #
+# ================================================================== #
+
+def export_case_iocs(case: dict[str, Any], format_type: str = "json") -> dict[str, Any]:
+    """
+    Extracts, deduplicates, and formats all technical Indicators of Compromise (IoCs)
+    from a case into standardized formats (JSON, CSV, STIX-pattern).
+    """
+    entities = extract_case_entities(case)
+    case_id = entities["case_id"]
+    filename = entities["filename"]
+    risk_label = entities["risk_label"]
+
+    iocs: list[dict[str, Any]] = []
+
+    # 1. Senders
+    if entities["sender"]:
+        iocs.append({
+            "type": "email-addr",
+            "value": entities["sender"],
+            "context": "Transmitting Sender Address",
+            "confidence": "HIGH",
+            "mitre_tactic": "Initial Access (TA0001)",
+        })
+
+    # 2. Domains
+    for d in entities["domains"]:
+        iocs.append({
+            "type": "domain-name",
+            "value": d,
+            "context": "Referenced / Hosting Domain",
+            "confidence": "HIGH",
+            "mitre_tactic": "Resource Development (TA0042)",
+        })
+
+    # 3. Public IPs
+    for ip in entities["public_ips"]:
+        iocs.append({
+            "type": "ipv4-addr",
+            "value": ip,
+            "context": "Transmitting Public Sending Relay IP",
+            "confidence": "HIGH",
+            "mitre_tactic": "Command and Control (TA0011)",
+        })
+
+    # 4. URLs
+    for u_hash, u_str in entities["urls"].items():
+        iocs.append({
+            "type": "url",
+            "value": u_str,
+            "context": "Embedded Email Hyperlink Payload",
+            "confidence": "HIGH",
+            "mitre_tactic": "Initial Access (TA0001)",
+        })
+
+    # 5. Attachments
+    for att in entities["attachments"]:
+        if att.get("sha256"):
+            iocs.append({
+                "type": "file-sha256",
+                "value": att["sha256"],
+                "context": f"Email Attachment SHA-256 ({att.get('filename') or 'unnamed'})",
+                "confidence": "HIGH",
+                "mitre_tactic": "Execution (TA0002)",
+            })
+
+    # Generate CSV format string
+    csv_output = io.StringIO()
+    writer = csv.writer(csv_output)
+    writer.writerow(["Type", "Value", "Context", "Confidence", "MITRE_Tactic", "Case_ID"])
+    for ioc in iocs:
+        writer.writerow([ioc["type"], ioc["value"], ioc["context"], ioc["confidence"], ioc["mitre_tactic"], case_id])
+    csv_string = csv_output.getvalue()
+
+    # Generate STIX 2.1 Pattern Examples
+    stix_patterns = []
+    for ioc in iocs:
+        if ioc["type"] == "ipv4-addr":
+            stix_patterns.append(f"[ipv4-addr:value = '{ioc['value']}']")
+        elif ioc["type"] == "domain-name":
+            stix_patterns.append(f"[domain-name:value = '{ioc['value']}']")
+        elif ioc["type"] == "url":
+            clean_u = ioc['value'].replace("'", "\\'")
+            stix_patterns.append(f"[url:value = '{clean_u}']")
+        elif ioc["type"] == "email-addr":
+            stix_patterns.append(f"[email-addr:value = '{ioc['value']}']")
+        elif ioc["type"] == "file-sha256":
+            stix_patterns.append(f"[file:hashes.'SHA-256' = '{ioc['value']}']")
+
+    return {
+        "case_id": case_id,
+        "filename": filename,
+        "risk_label": risk_label,
+        "total_iocs": len(iocs),
+        "iocs": iocs,
+        "csv_export": csv_string,
+        "stix_patterns": stix_patterns,
     }

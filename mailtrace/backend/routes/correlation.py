@@ -1,16 +1,19 @@
 """
-routes/correlation.py — Campaign Correlation & Investigation Graph API Endpoints.
+routes/correlation.py — Campaign Correlation, Investigation Graph & Threat Hunting API Endpoints.
 
 Endpoints:
-    GET /api/correlation         — Global correlation overview, campaign clusters, and graph.
-    GET /api/correlation/cases   — Alias for /api/correlation.
-    GET /api/correlation/{id}    — Case-specific correlation details, related cases, and sub-graph.
+    GET  /api/correlation                     — Global correlation overview, campaign clusters, and graph.
+    GET  /api/correlation/cases               — Alias for /api/correlation.
+    POST /api/correlation/hunt                — Execute hypothesis-driven threat hunt across all cases.
+    GET  /api/correlation/hunt                — Execute threat hunt via query parameters.
+    GET  /api/correlation/export-iocs/{id}     — Export standardized IoC manifest for a specific case.
+    GET  /api/correlation/{id}                — Case-specific correlation details, related cases, and sub-graph.
 """
 
 from __future__ import annotations
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,10 +22,15 @@ from backend.models.analysis import AnalysisCase
 from backend.schemas.correlation import (
     CorrelationOverviewResponse,
     CaseCorrelationDetailResponse,
+    ThreatHuntRequest,
+    ThreatHuntResponse,
+    IoCExportResponse,
 )
 from backend.services.correlation import (
     build_campaign_correlation,
     get_case_correlation_subgraph,
+    execute_threat_hunt,
+    export_case_iocs,
 )
 
 logger = logging.getLogger("mailtrace.routes.correlation")
@@ -118,6 +126,104 @@ async def get_global_correlation(
 
 
 # ------------------------------------------------------------------ #
+#  POST & GET /api/correlation/hunt (Hypothesis-Driven Hunting)      #
+# ------------------------------------------------------------------ #
+
+@router.post(
+    "/hunt",
+    response_model=ThreatHuntResponse,
+    summary="Execute hypothesis-driven threat hunt across cases",
+    description="Evaluates threat hunting hypotheses (Shared Infrastructure, Executive Spoofing, SaaS Abuse, Credential Campaigns) across all ingested emails.",
+)
+async def post_threat_hunt(
+    req: ThreatHuntRequest,
+    db: AsyncSession = Depends(get_db),
+) -> ThreatHuntResponse:
+    try:
+        result = await db.execute(select(AnalysisCase))
+        cases = result.scalars().all()
+    except Exception as exc:
+        logger.error(f"Failed to query cases for threat hunt: {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"status": "error", "code": "DB_QUERY_ERROR", "message": "Failed to query cases for threat hunting."},
+        )
+
+    cases_dicts = [_case_to_dict(c) for c in cases]
+    hunt_results = execute_threat_hunt(cases_dicts, hypothesis_type=req.hypothesis_type, query=req.query)
+
+    return ThreatHuntResponse(
+        status=hunt_results["status"],
+        hunt_query=hunt_results["hunt_query"],
+        total_cases_analyzed=hunt_results["total_cases_analyzed"],
+        hypotheses_evaluated=hunt_results["hypotheses_evaluated"],
+        results=hunt_results["results"],
+    )
+
+
+@router.get(
+    "/hunt",
+    response_model=ThreatHuntResponse,
+    summary="Execute threat hunt via query parameters",
+    include_in_schema=False,
+)
+async def get_threat_hunt(
+    hypothesis: str = Query(default="ALL", description="Hypothesis type to evaluate"),
+    q: str = Query(default="", description="Search query string or indicator pivot"),
+    db: AsyncSession = Depends(get_db),
+) -> ThreatHuntResponse:
+    return await post_threat_hunt(ThreatHuntRequest(hypothesis_type=hypothesis, query=q), db=db)
+
+
+# ------------------------------------------------------------------ #
+#  GET /api/correlation/export-iocs/{case_id}                        #
+# ------------------------------------------------------------------ #
+
+@router.get(
+    "/export-iocs/{case_id}",
+    response_model=IoCExportResponse,
+    summary="Export technical IoCs for a specific case in standard formats",
+    description="Generates normalized JSON, CSV, and STIX-pattern IoCs for integration with SIEM/EDR platforms.",
+)
+async def export_iocs(
+    case_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> IoCExportResponse:
+    try:
+        target_res = await db.execute(select(AnalysisCase).where(AnalysisCase.id == case_id))
+        target_case = target_res.scalar_one_or_none()
+    except Exception as exc:
+        logger.error(f"Failed to query target case {case_id} for IoC export: {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"status": "error", "code": "DB_QUERY_ERROR", "message": "Failed to retrieve case for IoC export."},
+        )
+
+    if not target_case:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "status": "error",
+                "code": "CASE_NOT_FOUND",
+                "message": f"No analysis case found with ID: {case_id}",
+            },
+        )
+
+    case_dict = _case_to_dict(target_case)
+    ioc_data = export_case_iocs(case_dict)
+
+    return IoCExportResponse(
+        case_id=ioc_data["case_id"],
+        filename=ioc_data["filename"],
+        risk_label=ioc_data["risk_label"],
+        total_iocs=ioc_data["total_iocs"],
+        iocs=ioc_data["iocs"],
+        csv_export=ioc_data["csv_export"],
+        stix_patterns=ioc_data["stix_patterns"],
+    )
+
+
+# ------------------------------------------------------------------ #
 #  GET /api/correlation/{case_id}                                    #
 # ------------------------------------------------------------------ #
 
@@ -175,4 +281,3 @@ async def get_case_correlation(
         graph=subgraph_detail.get("graph", {"nodes": [], "edges": []}),
         limitations=subgraph_detail.get("limitations", []),
     )
-

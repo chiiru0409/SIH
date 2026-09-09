@@ -12,7 +12,8 @@ import {
   AlertCircle,
   Cloud,
   Lock,
-  Award
+  Award,
+  Crosshair
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 
@@ -37,6 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const navItems = [
     { id: 'overview', label: 'Analysis & Ingest', icon: <Upload className="w-3.5 h-3.5" /> },
+    { id: 'hunting', label: 'Threat Hunting', icon: <Crosshair className="w-3.5 h-3.5" /> },
     { id: 'forensics', label: 'Forensics', icon: <Search className="w-3.5 h-3.5" /> },
     { id: 'tenants', label: 'Cloud Tenants', icon: <Cloud className="w-3.5 h-3.5" /> },
     { id: 'quarantine', label: 'Quarantine & Policy', icon: <Lock className="w-3.5 h-3.5" /> },

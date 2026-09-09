@@ -1,9 +1,9 @@
 """
-services/policy_engine.py — Automated SOC Policy Enforcement & Quarantine Vault.
-Inspired by Mimecast Targeted Threat Protection & Policy Management.
+services/policy_engine.py — Automated SOC Policy Enforcement, Quarantine Vault & Incident Playbooks.
+Inspired by Mimecast Targeted Threat Protection & Palantir Alerting & Detection Strategy (ADS).
 
 Evaluates security policy rules against analyzed cases and manages the SOC
-Quarantine Vault, domain/sender blocklists, and automated remediation actions.
+Quarantine Vault, domain/sender blocklists, and automated remediation action playbooks.
 """
 
 from __future__ import annotations
@@ -71,6 +71,99 @@ _BLOCKLIST: List[Dict[str, Any]] = [
 ]
 
 
+def generate_incident_playbook(
+    case_id: str,
+    threat_intent: str,
+    risk_score: float,
+    sender_email: Optional[str],
+    sender_domain: Optional[str],
+    has_auth_fail: bool,
+    has_display_spoof: bool,
+    saas_abuse: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Generates a Palantir Alerting & Detection Strategy (ADS)-aligned SOC Incident Playbook.
+    Provides structured 4-phase containment, eradication, and hunting actions.
+    """
+    intent_up = (threat_intent or "").upper()
+    saas_info = saas_abuse or {}
+
+    containment_steps: List[str] = []
+    preservation_steps: List[str] = [
+        "Cryptographically seal RFC-822 evidence payload (SHA-256) into local audit log.",
+        "Export parsed IoC manifest (JSON/CSV) for SIEM ingest.",
+    ]
+    hunting_steps: List[str] = [
+        f"Execute threat hunt across tenant mailboxes for sender domain '{sender_domain or 'unknown'}'.",
+        "Check correlation graph for related campaign clusters and shared public sending IPs.",
+    ]
+    eradication_steps: List[str] = []
+
+    if risk_score >= 80 or "CREDENTIAL" in intent_up or "MALWARE" in intent_up:
+        containment_steps.extend([
+            "Execute immediate quarantine on message across all recipient mailboxes via API.",
+            "Defang all embedded hyperlinks and disable active HTML execution.",
+            "Trigger automated password reset and session revocation if any user clicked embedded links.",
+        ])
+        eradication_steps.extend([
+            f"Add domain '{sender_domain}' and sending IPs to perimeter email gateway blocklist.",
+            "Purge quarantined copy from user spam/trash folders after evidence hash verification.",
+        ])
+    elif "BEC" in intent_up or has_display_spoof:
+        containment_steps.extend([
+            "Quarantine message and alert internal finance/payroll teams of active VIP impersonation lure.",
+            "Notify target recipients via out-of-band channel (phone/Slack) to verify any pending payment requests.",
+        ])
+        eradication_steps.extend([
+            "Configure executive display name exact-match rule in gateway policy engine.",
+            f"Add sender email '{sender_email}' to VIP fraud blocklist.",
+        ])
+    elif has_auth_fail:
+        containment_steps.extend([
+            "Defang external links and append HIGH-RISK EXTERNAL SPOOF warning banner.",
+            "Route subsequent unauthenticated inbound messages from this domain to quarantine review.",
+        ])
+        eradication_steps.extend([
+            f"Contact domain owner of '{sender_domain}' to review missing/misconfigured SPF & DMARC records.",
+        ])
+    else:
+        containment_steps.extend([
+            "Inject cautionary external sender banner if message is delivered to user inbox.",
+        ])
+        eradication_steps.extend([
+            "No immediate blocklist addition required; monitor for repeat anomalies.",
+        ])
+
+    if saas_info.get("detected"):
+        services = ", ".join(saas_info.get("services", []))
+        hunting_steps.append(f"Living-off-Legitimate-Services detected ({services}): audit all outbound traffic to cloud lure links.")
+        containment_steps.append(f"Submit abuse takedown report to {services} trust & safety teams.")
+
+    return {
+        "playbook_id": f"PB-{intent_up or 'GENERIC'}-{case_id[:8]}",
+        "threat_category": intent_up or "SUSPICIOUS_EMAIL",
+        "phases": {
+            "phase1_containment": {
+                "title": "Phase 1: Immediate Containment & Isolation",
+                "actions": containment_steps,
+            },
+            "phase2_preservation": {
+                "title": "Phase 2: Evidence Integrity & Chain of Custody",
+                "actions": preservation_steps,
+            },
+            "phase3_hunting": {
+                "title": "Phase 3: Threat Hunting & Scope Assessment",
+                "actions": hunting_steps,
+            },
+            "phase4_eradication": {
+                "title": "Phase 4: Eradication & Hardening",
+                "actions": eradication_steps,
+            },
+        },
+        "soc_readiness_level": "L2_ANALYST_ACTIONABLE",
+    }
+
+
 def evaluate_policies(
     case_id: str,
     original_filename: str,
@@ -83,11 +176,13 @@ def evaluate_policies(
     forensic_findings: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
-    Evaluates enterprise policy rules against an analyzed case and applies automated remediation.
+    Evaluates enterprise policy rules against an analyzed case, applies automated remediation,
+    and attaches an ADS-aligned Incident Playbook.
     """
     threat_info = threat_classification or {}
     primary_intent = str(threat_info.get("primary_intent", "")).upper()
     findings = forensic_findings or []
+    saas_abuse = threat_info.get("saas_abuse") or {}
 
     has_bec = "BEC" in primary_intent or "WIRE" in primary_intent
     has_display_spoof = any("DISPLAY-NAME" in str(f.get("category", "")).upper() or "SPOOF" in str(f.get("title", "")).upper() for f in findings)
@@ -171,12 +266,25 @@ def evaluate_policies(
             "analyst_notes": None,
         }
 
+    # Generate ADS-aligned incident playbook
+    playbook = generate_incident_playbook(
+        case_id=case_id,
+        threat_intent=primary_intent,
+        risk_score=risk_score,
+        sender_email=sender_email,
+        sender_domain=sender_domain,
+        has_auth_fail=has_auth_fail,
+        has_display_spoof=has_display_spoof,
+        saas_abuse=saas_abuse,
+    )
+
     return {
         "status": "EVALUATED",
         "recommended_action": recommended_action,
         "action_reason": action_reason,
         "is_quarantined": recommended_action in ("QUARANTINE", "QUARANTINE_AND_ALERT"),
         "triggered_rules": triggered_rules,
+        "incident_playbook": playbook,
     }
 
 

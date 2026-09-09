@@ -15,10 +15,14 @@ Architecture:
        - SOCIAL_ENGINEERING
        - SUSPICIOUS
        - BENIGN
-    4. Multi-Label Indicator Generation & Weight Scoring.
-    5. Explainable Reasoning (Structured indicators + Evidence citations + Concise explanation).
-    6. Strict Fact vs. AI Inference Separation.
-    7. 100% Offline / Deterministic Local Capability with Optional LLM Provider Fallback.
+    4. Compound Multi-Signal Rules Matrix (SpecterOps Detection Spectrum & Sublime Rules concept).
+    5. Living off Legitimate Services (LOLServices / SaaS abuse detection).
+    6. MITRE ATT&CK for Enterprise (Email Technique Mapping: T1566, T1036, T1056, T1534).
+    7. Funnel of Fidelity 4-Tier Distillation (Observed Facts -> Behavioral Inferences -> Compound Signals -> Actionable Verdict).
+    8. Multi-Label Indicator Generation & Weight Scoring.
+    9. Explainable Reasoning (Structured indicators + Evidence citations + Concise explanation).
+    10. Strict Fact vs. AI Inference Separation.
+    11. 100% Offline / Deterministic Local Capability with Optional LLM Provider Fallback.
 
 Design Rules:
     - Never replace deterministic forensic evidence.
@@ -62,6 +66,94 @@ ALL_THREAT_CATEGORIES = [
     THREAT_SUSPICIOUS,
     THREAT_BENIGN,
 ]
+
+
+# ================================================================== #
+#  Legitimate SaaS / Cloud Service Abuse Signatures (LOLServices)     #
+# ================================================================== #
+
+LEGITIMATE_SAAS_PATTERNS = [
+    (r"docs\.google\.com/(?:forms|document|spreadsheets|presentation)", "Google Docs/Forms", "google_forms"),
+    (r"forms\.gle/[a-zA-Z0-9_\-]+", "Google Forms Shortlink", "google_forms"),
+    (r"drive\.google\.com/(?:file|drive|open)", "Google Drive Share", "google_drive"),
+    (r"(?:[a-zA-Z0-9\-]+\.)?sharepoint\.com/(?:[a-zA-Z0-9_\-/:?&=]+)", "Microsoft SharePoint Share", "sharepoint"),
+    (r"1drv\.ms/[a-zA-Z0-9_\-]+", "Microsoft OneDrive Shortlink", "onedrive"),
+    (r"forms\.office\.com/(?:[a-zA-Z0-9_\-/:?&=]+)", "Microsoft Office Forms", "microsoft_forms"),
+    (r"sway\.office\.com/[a-zA-Z0-9_\-]+", "Microsoft Sway Presentation", "microsoft_sway"),
+    (r"(?:[a-zA-Z0-9\-]+\.)?canva\.(?:com|site)", "Canva Hosted Landing Page", "canva"),
+    (r"(?:[a-zA-Z0-9\-]+\.)?notion\.(?:site|so)", "Notion Public Site", "notion"),
+    (r"(?:[a-zA-Z0-9\-]+\.)?web\.app", "Firebase Hosting Web App", "firebase"),
+    (r"(?:[a-zA-Z0-9\-]+\.)?firebaseapp\.com", "Firebase App", "firebase"),
+    (r"dropbox\.com/s/[a-zA-Z0-9_\-]+", "Dropbox Public Link", "dropbox"),
+    (r"app\.box\.com/s/[a-zA-Z0-9_\-]+", "Box Public File Share", "box"),
+    (r"(?:[a-zA-Z0-9\-]+\.)?webflow\.io", "Webflow Hosted Staging Page", "webflow"),
+    (r"(?:[a-zA-Z0-9\-]+\.)?glitch\.me", "Glitch Hosted Node App", "glitch"),
+    (r"(?:[a-zA-Z0-9\-]+\.)?vercel\.app", "Vercel Hosted App", "vercel"),
+]
+
+
+# ================================================================== #
+#  MITRE ATT&CK for Enterprise (Email Threat Matrix)                  #
+# ================================================================== #
+
+MITRE_TECHNIQUES = {
+    "T1566.001": {
+        "id": "T1566.001",
+        "technique_id": "T1566.001",
+        "name": "Phishing: Spearphishing Attachment",
+        "tactic": "Initial Access",
+        "url": "https://attack.mitre.org/techniques/T1566/001/",
+        "description": "Adversaries may send spearphishing emails with a malicious attachment to gain initial access.",
+    },
+    "T1566.002": {
+        "id": "T1566.002",
+        "technique_id": "T1566.002",
+        "name": "Phishing: Spearphishing Link",
+        "tactic": "Initial Access",
+        "url": "https://attack.mitre.org/techniques/T1566/002/",
+        "description": "Adversaries may send spearphishing emails with a link designed to lure users into visiting a malicious website.",
+    },
+    "T1566.003": {
+        "id": "T1566.003",
+        "technique_id": "T1566.003",
+        "name": "Phishing: Spearphishing via Service",
+        "tactic": "Initial Access",
+        "url": "https://attack.mitre.org/techniques/T1566/003/",
+        "description": "Adversaries may leverage legitimate third-party cloud/SaaS services (Forms, SharePoint, Canva) to host phishing links.",
+    },
+    "T1036.005": {
+        "id": "T1036.005",
+        "technique_id": "T1036.005",
+        "name": "Masquerading: Match Legitimate Name or Location",
+        "tactic": "Defense Evasion",
+        "url": "https://attack.mitre.org/techniques/T1036/005/",
+        "description": "Adversaries may spoof VIP display names or lookalike sending domains to deceive recipients.",
+    },
+    "T1056.001": {
+        "id": "T1056.001",
+        "technique_id": "T1056.001",
+        "name": "Input Capture: Keylogging / Credential Prompt",
+        "tactic": "Collection",
+        "url": "https://attack.mitre.org/techniques/T1056/001/",
+        "description": "Adversaries may solicit credentials via fake authentication portals or cloud landing pages.",
+    },
+    "T1534": {
+        "id": "T1534",
+        "technique_id": "T1534",
+        "name": "Internal Spearphishing",
+        "tactic": "Lateral Movement",
+        "url": "https://attack.mitre.org/techniques/T1534/",
+        "description": "Adversaries may use compromised or spoofed internal sender identities to target other employees.",
+    },
+    "T1071.001": {
+        "id": "T1071.001",
+        "technique_id": "T1071.001",
+        "name": "Application Layer Protocol: Web Protocols",
+        "tactic": "Command and Control",
+        "url": "https://attack.mitre.org/techniques/T1071/001/",
+        "description": "Adversaries may use raw IP-based web infrastructure or direct URLs for payload delivery.",
+    },
+}
 
 
 # ================================================================== #
@@ -176,7 +268,6 @@ def _match_patterns(text: str, pattern_list: list[tuple[str, float, str]]) -> li
         found = re.search(pattern, text, re.IGNORECASE)
         if found and description not in seen_descriptions:
             matched_snippet = found.group(0)
-            # Find surrounding context (~60 chars)
             start = max(0, found.start() - 25)
             end = min(len(text), found.end() + 25)
             snippet = text[start:end].strip().replace("\n", " ")
@@ -219,17 +310,41 @@ def _signal_level(score: float) -> str:
 #  Core Threat Analysis Logic                                         #
 # ================================================================== #
 
+def _detect_saas_abuse(urls: list[Any], body_text: str) -> list[dict[str, Any]]:
+    """
+    Detect Living off Legitimate Services (LOLServices) where attackers host phishing
+    or payload lures on trusted SaaS / Cloud services (Forms, SharePoint, Canva, Notion, Firebase).
+    """
+    saas_findings: list[dict[str, Any]] = []
+    seen_platforms = set()
+
+    for u in urls:
+        u_str = u.get("url", "") if isinstance(u, dict) else str(u)
+        for pattern, platform_name, service_id in LEGITIMATE_SAAS_PATTERNS:
+            if re.search(pattern, u_str, re.IGNORECASE) and platform_name not in seen_platforms:
+                seen_platforms.add(platform_name)
+                saas_findings.append({
+                    "platform": platform_name,
+                    "service_id": service_id,
+                    "url": u_str,
+                    "description": f"Message contains link to legitimate public cloud service '{platform_name}' often abused for credential phishing lures.",
+                })
+
+    return saas_findings
+
+
 def _extract_content_signals(
     subject: str,
     body_text: str,
     parsed_email: dict,
     forensic_analysis: dict | None = None,
-) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Extract linguistic, structural, and forensic threat indicators.
     Returns:
         signals_map: dict of category -> level ("high"|"medium"|"low"|"none")
         indicators: list of structured indicator dicts
+        saas_abuse: list of detected legitimate service abuses
     """
     sender_info = parsed_email.get("sender", {})
     from_display = sender_info.get("display_name", "") or ""
@@ -340,7 +455,6 @@ def _extract_content_signals(
             has_archive = True
             dangerous_filenames.append(att.get("filename", "unknown"))
         elif "." in fname and any(f".{part}" in DANGEROUS_EXTENSIONS for part in fname.split(".")[1:]):
-            # Double extension detection (e.g. file.pdf.exe)
             has_dangerous_ext = True
             dangerous_filenames.append(att.get("filename", "unknown"))
 
@@ -363,10 +477,21 @@ def _extract_content_signals(
             "evidence": f"Attachments: {', '.join(dangerous_filenames)}",
         })
 
-    # 3. URL & Link Analysis
+    # 3. URL & Link Analysis + SaaS Abuse Detection
     urls = parsed_email.get("urls", [])
     ip_host_urls = []
     suspicious_urls = []
+    saas_abuse = _detect_saas_abuse(urls, body_text)
+
+    for saas in saas_abuse:
+        indicators.append({
+            "indicator": "legitimate_service_abuse",
+            "category": "link",
+            "weight": 0.75,
+            "severity": "medium",
+            "description": saas["description"],
+            "evidence": f"Service: {saas['platform']} | Link: {saas['url']}",
+        })
 
     for u in urls:
         u_str = u.get("url", "") if isinstance(u, dict) else str(u)
@@ -408,7 +533,7 @@ def _extract_content_signals(
             "evidence": f"URLs present: {len(urls)} link(s)",
         })
 
-    # 4. Forensic Signals Integration (from Step 3)
+    # 4. Forensic Signals Integration
     auth_failures = 0
     impersonation_evidence = []
     reply_to_mismatch = False
@@ -472,7 +597,6 @@ def _extract_content_signals(
                     "evidence": f.get("description", ""),
                 })
     else:
-        # Fallback to parser indicators
         flags = parsed_email.get("indicators", {})
         if flags.get("reply_to_mismatch"):
             reply_to_mismatch = True
@@ -507,6 +631,8 @@ def _extract_content_signals(
         link_score = 0.90
     elif suspicious_urls:
         link_score = 0.75
+    elif saas_abuse and (credential_matches or urgency_matches):
+        link_score = 0.80
     elif len(urls) > 0:
         link_score = 0.35
 
@@ -523,7 +649,220 @@ def _extract_content_signals(
         "authority_pressure": _signal_level(executive_score + secrecy_score),
     }
 
-    return signals_map, indicators
+    return signals_map, indicators, saas_abuse
+
+
+def _evaluate_compound_rules(
+    signals_map: dict[str, str],
+    indicators: list[dict[str, Any]],
+    parsed_email: dict,
+    forensic_analysis: dict | None,
+    saas_abuse: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    Evaluates compound multi-signal rules combining atomic signals into high-fidelity detections.
+    Inspired by Sublime Detection Rules and SpecterOps Detection Spectrum.
+    """
+    compound_rules: list[dict[str, Any]] = []
+
+    sender_info = parsed_email.get("sender", {})
+    from_domain = (sender_info.get("domain") or "").lower()
+    from_display = (sender_info.get("display_name") or "")
+    freemail_providers = {"gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "proton.me", "protonmail.com", "aol.com"}
+    is_freemail = from_domain in freemail_providers
+
+    is_high = lambda sig: signals_map.get(sig) == "high"
+    is_med_or_high = lambda sig: signals_map.get(sig) in ("medium", "high")
+
+    # Compound Rule 1: VIP Impersonation with FreeMail & Financial/Urgency Pretext
+    has_exec_title = bool(re.search(r"\b(?:ceo|cfo|director|president|executive|chief|treasurer)\b", from_display, re.IGNORECASE))
+    if (is_freemail or is_high("impersonation")) and (has_exec_title or is_med_or_high("authority_pressure")) and (is_med_or_high("financial_request") or is_med_or_high("urgency")):
+        compound_rules.append({
+            "rule_id": "CR-001",
+            "name": "VIP_IMPERSONATION_WITH_FREEMAIL",
+            "fidelity": "HIGH_FIDELITY",
+            "category": "BEC_IMPERSONATION",
+            "mitre_technique": "T1036.005",
+            "signals_combined": ["Executive/VIP display name", "External freemail origin", "Financial/Urgent demand"],
+            "reason": f"Display name '{from_display}' invokes executive authority while sending from unauthenticated freemail domain <{from_domain}> with urgent financial pretext.",
+        })
+
+    # Compound Rule 2: Legitimate SaaS Platform Abuse with Credential Harvesting
+    if saas_abuse and (is_med_or_high("credential_request") or is_med_or_high("urgency")):
+        platforms = ", ".join(s["platform"] for s in saas_abuse)
+        compound_rules.append({
+            "rule_id": "CR-002",
+            "name": "LEGITIMATE_SERVICE_ABUSE_CREDENTIAL_PHISH",
+            "fidelity": "HIGH_FIDELITY",
+            "category": "LIVING_OFF_LEGITIMATE_SERVICES",
+            "mitre_technique": "T1566.003",
+            "signals_combined": [f"Public SaaS host ({platforms})", "Credential prompt", "Call to Action"],
+            "reason": f"Attacker leverages trusted cloud platform ({platforms}) to bypass reputation filters while soliciting user credentials.",
+        })
+
+    # Compound Rule 3: DMARC Authentication Failure with Financial Redirection
+    has_dmarc_fail = False
+    if forensic_analysis:
+        has_dmarc_fail = any(
+            f.get("category") == "authentication" and "dmarc" in str(f.get("type", "")).lower() and f.get("status") == "failed"
+            for f in forensic_analysis.get("findings", [])
+        )
+    if (has_dmarc_fail or is_high("impersonation")) and is_high("financial_request"):
+        compound_rules.append({
+            "rule_id": "CR-003",
+            "name": "DMARC_FAIL_WITH_FINANCIAL_DEMAND",
+            "fidelity": "CRITICAL_FIDELITY",
+            "category": "WIRE_FRAUD_BEC",
+            "mitre_technique": "T1534",
+            "signals_combined": ["Cryptographic DMARC failure", "Wire transfer / bank detail alteration"],
+            "reason": "Sending infrastructure failed domain authentication while demanding financial wire transfer or banking changes.",
+        })
+
+    # Compound Rule 4: Dangerous or Double Extension Attachment
+    has_dangerous_att = any(i.get("indicator") == "dangerous_attachment_type" for i in indicators)
+    if has_dangerous_att and (is_med_or_high("urgency") or is_med_or_high("fear_manipulation")):
+        compound_rules.append({
+            "rule_id": "CR-004",
+            "name": "EXECUTABLE_ATTACHMENT_WITH_URGENCY",
+            "fidelity": "CRITICAL_FIDELITY",
+            "category": "SPEARPHISHING_ATTACHMENT",
+            "mitre_technique": "T1566.001",
+            "signals_combined": ["Executable/script attachment payload", "Urgent coercive framing"],
+            "reason": "Executable or script payload delivered under social engineering pressure.",
+        })
+
+    # Compound Rule 5: Raw IP Host URL with Credential Solicitation
+    has_ip_host = any(i.get("indicator") == "ip_host_url" for i in indicators)
+    if has_ip_host and (is_med_or_high("credential_request") or is_med_or_high("fear_manipulation")):
+        compound_rules.append({
+            "rule_id": "CR-005",
+            "name": "RAW_IP_URL_WITH_CREDENTIAL_LURE",
+            "fidelity": "HIGH_FIDELITY",
+            "category": "CREDENTIAL_HARVESTING",
+            "mitre_technique": "T1056.001",
+            "signals_combined": ["Raw IP host destination URL", "Credential solicitation"],
+            "reason": "Direct IP-hosted portal soliciting sensitive credentials without standard domain registration.",
+        })
+
+    return compound_rules
+
+
+def _map_mitre_attack(
+    primary_threat: str,
+    signals_map: dict[str, str],
+    indicators: list[dict[str, Any]],
+    compound_rules: list[dict[str, Any]],
+    saas_abuse: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    Map classified threat indicators and compound rules to MITRE ATT&CK techniques.
+    """
+    matched_technique_ids: set[str] = set()
+
+    for cr in compound_rules:
+        tech = cr.get("mitre_technique")
+        if tech and tech in MITRE_TECHNIQUES:
+            matched_technique_ids.add(tech)
+
+    if any(i.get("indicator") == "dangerous_attachment_type" for i in indicators):
+        matched_technique_ids.add("T1566.001")
+
+    if any(i.get("category") == "link" for i in indicators):
+        matched_technique_ids.add("T1566.002")
+
+    if saas_abuse:
+        matched_technique_ids.add("T1566.003")
+
+    if signals_map.get("impersonation") in ("medium", "high") or any("spoofing" in i.get("indicator", "") for i in indicators):
+        matched_technique_ids.add("T1036.005")
+
+    if signals_map.get("credential_request") in ("medium", "high") or primary_threat == THREAT_CREDENTIAL_HARVESTING:
+        matched_technique_ids.add("T1056.001")
+
+    if primary_threat == THREAT_BEC or signals_map.get("financial_request") in ("medium", "high"):
+        matched_technique_ids.add("T1534")
+
+    if any(i.get("indicator") == "ip_host_url" for i in indicators):
+        matched_technique_ids.add("T1071.001")
+
+    if primary_threat == THREAT_BENIGN and not matched_technique_ids:
+        return []
+
+    return [MITRE_TECHNIQUES[tid] for tid in sorted(list(matched_technique_ids)) if tid in MITRE_TECHNIQUES]
+
+
+def _build_funnel_of_fidelity(
+    primary_threat: str,
+    confidence: float,
+    indicators: list[dict[str, Any]],
+    compound_rules: list[dict[str, Any]],
+    parsed_email: dict,
+    forensic_analysis: dict | None,
+) -> dict[str, Any]:
+    """
+    Construct the 4-tier Funnel of Fidelity (SpecterOps concept):
+      Tier 1: Ground-Truth Observed Facts (Cryptographic & Protocol Telemetry)
+      Tier 2: Behavioral & Heuristic Signals (Linguistic, Brand & URL Inferences)
+      Tier 3: Compound Multi-Signal Detections (Correlated Attack Mechanics)
+      Tier 4: Actionable Incident Verdict & Triage
+    """
+    tier_1_facts: list[str] = []
+    sender = parsed_email.get("sender", {})
+    if sender.get("email"):
+        tier_1_facts.append(f"Envelope/Header From: {sender.get('email')}")
+    
+    auth = parsed_email.get("authentication", {})
+    if forensic_analysis:
+        auth_sum = forensic_analysis.get("summary", {}).get("authentication", {})
+        tier_1_facts.append(f"SPF Status: {auth_sum.get('spf_status', 'unknown').upper()} | DKIM Status: {auth_sum.get('dkim_status', 'unknown').upper()} | DMARC Status: {auth_sum.get('dmarc_status', 'unknown').upper()}")
+    elif auth:
+        tier_1_facts.append(f"SPF: {auth.get('spf', {}).get('status', 'none')} | DKIM: {auth.get('dkim', {}).get('status', 'none')} | DMARC: {auth.get('dmarc', {}).get('status', 'none')}")
+
+    relay = parsed_email.get("received_chain", {})
+    if relay.get("hop_count"):
+        tier_1_facts.append(f"Relay Hops Observed: {relay.get('hop_count')} | Earliest IP: {relay.get('earliest_observed_node') or 'N/A'}")
+
+    urls = parsed_email.get("urls", [])
+    if urls:
+        tier_1_facts.append(f"Extracted Hyperlinks: {len(urls)} distinct destination(s)")
+
+    atts = parsed_email.get("attachments", [])
+    if atts:
+        tier_1_facts.append(f"MIME Attachments: {len(atts)} item(s) [{', '.join(a.get('filename', '') for a in atts[:3])}]")
+
+    tier_2_signals: list[dict[str, Any]] = [
+        {
+            "indicator": ind.get("indicator"),
+            "category": ind.get("category"),
+            "severity": ind.get("severity"),
+            "description": ind.get("description"),
+            "evidence": ind.get("evidence"),
+        }
+        for ind in indicators
+    ]
+
+    tier_3_compounds: list[dict[str, Any]] = compound_rules
+
+    if primary_threat in (THREAT_PHISHING, THREAT_BEC, THREAT_CREDENTIAL_HARVESTING):
+        fidelity_tier = "CRITICAL_ACTIONABLE" if compound_rules else "HIGH_CONFIDENCE_THREAT"
+    elif primary_threat in (THREAT_IMPERSONATION, THREAT_SOCIAL_ENGINEERING, THREAT_SUSPICIOUS):
+        fidelity_tier = "ELEVATED_RISK_REVIEW"
+    else:
+        fidelity_tier = "BENIGN_BASELINE"
+
+    return {
+        "fidelity_tier": fidelity_tier,
+        "confidence_index": round(confidence, 2),
+        "tier_1_observed_facts": tier_1_facts,
+        "tier_2_behavioral_signals": tier_2_signals,
+        "tier_3_compound_detections": tier_3_compounds,
+        "tier_4_actionable_verdict": {
+            "verdict": primary_threat,
+            "confidence": confidence,
+            "compounds_triggered_count": len(compound_rules),
+            "requires_quarantine": primary_threat not in (THREAT_BENIGN, THREAT_SUSPICIOUS) or len(compound_rules) > 0,
+        },
+    }
 
 
 def _classify_threat(
@@ -630,7 +969,7 @@ def _classify_threat(
 
     scores[THREAT_SOCIAL_ENGINEERING] = min(1.0, soc_score)
 
-    # 6. Evaluate SUSPICIOUS (Anomalies present but inconclusive for full Phishing/BEC)
+    # 6. Evaluate SUSPICIOUS
     susp_score = 0.0
     total_high_indicators = sum(1 for ind in indicators if ind.get("severity") == "high")
     total_med_indicators = sum(1 for ind in indicators if ind.get("severity") == "medium")
@@ -654,7 +993,6 @@ def _classify_threat(
     else:
         scores[THREAT_BENIGN] = 0.05
 
-    # Priority order for classification ties
     priority_order = [
         THREAT_PHISHING,
         THREAT_BEC,
@@ -674,7 +1012,6 @@ def _classify_threat(
     primary = sorted_categories[0]
     primary_score = scores[primary]
 
-    # If the highest score is too low (< 0.50), default to BENIGN or SUSPICIOUS
     if primary_score < 0.50:
         if total_med_indicators > 0 or total_high_indicators > 0:
             primary = THREAT_SUSPICIOUS
@@ -683,15 +1020,12 @@ def _classify_threat(
             primary = THREAT_BENIGN
             primary_score = 0.90
 
-    # Secondary threats: any other category with score >= 0.60
     secondaries = [
         cat for cat in priority_order
         if cat != primary and cat != THREAT_BENIGN and scores[cat] >= 0.60
     ]
 
-    # Calculate final confidence
     confidence = round(max(0.50, min(0.99, primary_score)), 2)
-
     return primary, secondaries, confidence
 
 
@@ -752,7 +1086,7 @@ def _generate_explanation(
             "Suspicious anomalies detected. While inconclusive for a specific attack taxonomy, multiple irregular structural, attachment, or header signals warrant caution."
         )
 
-    # 2. Detected Signal Affirmations (Truthful attribution of observed signals)
+    # 2. Detected Signal Affirmations
     detected_signals: list[str] = []
     if urgency_val in ("low", "medium", "high"):
         urg_ind = next((i for i in indicators if "urgency" in str(i.get("category", "")).lower() or "urgency" in str(i.get("indicator", "")).lower()), None)
@@ -799,7 +1133,7 @@ def _generate_explanation(
                 f"Contributing behavioral signals: {'; '.join(detected_signals)}."
             )
 
-    # 3. Explicit Statement of Absent Threats (Truthful negation)
+    # 3. Explicit Statement of Absent Threats
     absent_categories: list[str] = []
     if cred_val == "none" and primary_threat != THREAT_CREDENTIAL_HARVESTING:
         absent_categories.append("credential solicitation")
@@ -855,12 +1189,14 @@ def _separate_facts_and_inferences(
     if sender.get("display_name"):
         facts.append(f"Sender display name is '{sender.get('display_name')}'.")
 
-    # Step 3 facts if available
+    # Forensic facts if available
     if forensic_analysis:
         for f in forensic_analysis.get("facts", []):
-            facts.append(f.get("description") or f.get("title", ""))
+            if isinstance(f, dict):
+                facts.append(f.get("description") or f.get("title", ""))
+            elif isinstance(f, str) and f.strip():
+                facts.append(f.strip())
     else:
-        # Basic parser facts
         auth = parsed_email.get("authentication", {})
         if auth.get("spf", {}).get("status"):
             facts.append(f"SPF authentication status is recorded as '{auth.get('spf', {}).get('status')}'.")
@@ -877,7 +1213,6 @@ def _separate_facts_and_inferences(
     if attachments:
         facts.append(f"Email contains {len(attachments)} attachment(s): {', '.join(a.get('filename', 'unnamed') for a in attachments)}.")
 
-    # Inferences derived from indicators
     for ind in indicators:
         inferences.append(f"Inference: {ind.get('description')} [Evidence: {ind.get('evidence', 'N/A')}]")
 
@@ -910,7 +1245,6 @@ async def _call_llm_analyzer(
         logger.warning("httpx not installed; skipping LLM call.")
         return None
 
-    # Prepare sanitized context for LLM
     sender = parsed_email.get("sender", {})
     headers = parsed_email.get("headers", {})
     body_obj = parsed_email.get("body", {})
@@ -978,7 +1312,6 @@ async def _call_llm_analyzer(
             content = data["choices"][0]["message"]["content"]
             result = json.loads(content)
 
-            # Validate basic structure
             if "primary_threat" in result and result["primary_threat"] in ALL_THREAT_CATEGORIES:
                 result["analysis_method"] = "llm"
                 result["model_info"] = settings.OPENAI_MODEL or "gpt-4o-mini"
@@ -1001,6 +1334,7 @@ def analyze_threat(
 ) -> dict[str, Any]:
     """
     Perform explainable AI threat analysis on parsed email content and forensic evidence.
+    Integrates Funnel of Fidelity, Compound Multi-Signal Rules, SaaS Abuse Detection, and MITRE ATT&CK.
 
     Returns a structured dictionary containing:
         - primary_threat: str
@@ -1008,6 +1342,10 @@ def analyze_threat(
         - confidence: float (0.0 to 1.0)
         - signals: dict
         - indicators: list[dict]
+        - saas_abuse: list[dict]
+        - compound_rules: list[dict]
+        - mitre_attack: list[dict]
+        - funnel_of_fidelity: dict
         - explanation: str
         - evidence_summary: dict (facts and inferences)
         - analysis_method: 'local' | 'llm'
@@ -1035,15 +1373,24 @@ def analyze_threat(
     else:
         body_text = ""
 
-    # 1. Extract signals and indicators deterministically
-    signals_map, indicators = _extract_content_signals(
+    # 1. Extract signals, indicators and SaaS abuse deterministically
+    signals_map, indicators, saas_abuse = _extract_content_signals(
         subject=subject,
         body_text=body_text,
         parsed_email=parsed_email,
         forensic_analysis=forensic_analysis,
     )
 
-    # 2. Classify threat
+    # 2. Evaluate Compound Multi-Signal Rules
+    compound_rules = _evaluate_compound_rules(
+        signals_map=signals_map,
+        indicators=indicators,
+        parsed_email=parsed_email,
+        forensic_analysis=forensic_analysis,
+        saas_abuse=saas_abuse,
+    )
+
+    # 3. Classify threat category
     primary_threat, secondary_threats, confidence = _classify_threat(
         signals_map=signals_map,
         indicators=indicators,
@@ -1051,7 +1398,43 @@ def analyze_threat(
         forensic_analysis=forensic_analysis,
     )
 
-    # 3. Generate explainable explanation
+    # If high-fidelity compound rules triggered, ensure primary threat reflects the compound category
+    if compound_rules:
+        top_compound = compound_rules[0]
+        comp_cat = top_compound.get("category")
+        if comp_cat == "BEC_IMPERSONATION" and primary_threat in (THREAT_BENIGN, THREAT_SUSPICIOUS):
+            primary_threat = THREAT_BEC
+            confidence = max(0.85, confidence)
+        elif comp_cat == "LIVING_OFF_LEGITIMATE_SERVICES" and primary_threat in (THREAT_BENIGN, THREAT_SUSPICIOUS):
+            primary_threat = THREAT_PHISHING
+            confidence = max(0.85, confidence)
+        elif comp_cat == "WIRE_FRAUD_BEC":
+            primary_threat = THREAT_BEC
+            confidence = max(0.90, confidence)
+        elif comp_cat == "SPEARPHISHING_ATTACHMENT":
+            primary_threat = THREAT_PHISHING
+            confidence = max(0.90, confidence)
+
+    # 4. Map to MITRE ATT&CK for Enterprise
+    mitre_attack = _map_mitre_attack(
+        primary_threat=primary_threat,
+        signals_map=signals_map,
+        indicators=indicators,
+        compound_rules=compound_rules,
+        saas_abuse=saas_abuse,
+    )
+
+    # 5. Build Funnel of Fidelity 4-Tier Structure
+    funnel_of_fidelity = _build_funnel_of_fidelity(
+        primary_threat=primary_threat,
+        confidence=confidence,
+        indicators=indicators,
+        compound_rules=compound_rules,
+        parsed_email=parsed_email,
+        forensic_analysis=forensic_analysis,
+    )
+
+    # 6. Generate explainable explanation
     explanation = _generate_explanation(
         primary_threat=primary_threat,
         secondary_threats=secondary_threats,
@@ -1061,7 +1444,7 @@ def analyze_threat(
         forensic_analysis=forensic_analysis,
     )
 
-    # 4. Separate facts and inferences
+    # 7. Separate facts and inferences
     evidence_summary = _separate_facts_and_inferences(
         indicators=indicators,
         parsed_email=parsed_email,
@@ -1074,10 +1457,14 @@ def analyze_threat(
         "confidence": confidence,
         "signals": signals_map,
         "indicators": indicators,
+        "saas_abuse": saas_abuse,
+        "compound_rules": compound_rules,
+        "mitre_attack": mitre_attack,
+        "funnel_of_fidelity": funnel_of_fidelity,
         "explanation": explanation,
         "evidence_summary": evidence_summary,
         "analysis_method": "local",
-        "model_info": "rule-nlp-engine-v1",
+        "model_info": "rule-nlp-engine-v2-threat-hunting",
     }
 
     return result
@@ -1089,82 +1476,31 @@ def validate_threat_consistency(
     parsed_email: dict[str, Any] | None = None,
 ) -> list[str]:
     """
-    Automated consistency validator to detect internal contradictions across:
-    - Signals vs. Explanation narrative
-    - Signals vs. Risk factors
-    - Threat classification vs. Supporting evidence
-    - Confidence sanity
-
-    Returns a list of contradiction error strings (empty list [] if fully consistent).
+    Validate internal consistency of threat analysis results against risk assessment.
+    Returns a list of warning strings if inconsistencies are detected.
     """
-    contradictions: list[str] = []
-
+    warnings: list[str] = []
     if not isinstance(threat_analysis, dict):
-        return ["Threat analysis is missing or not a dictionary."]
+        return ["threat_analysis is not a valid dictionary."]
 
     primary = threat_analysis.get("primary_threat", "")
-    secondaries = threat_analysis.get("secondary_threats", []) or []
     confidence = float(threat_analysis.get("confidence", 0.0))
-    signals = threat_analysis.get("signals", {}) or {}
-    explanation = threat_analysis.get("explanation", "") or ""
-    exp_lower = explanation.lower()
+    signals = threat_analysis.get("signals", {})
 
-    # 1. Check Signal vs. Explanation Contradictions
-    urgency_level = signals.get("urgency", "none")
-    if urgency_level in ("medium", "high") and ("no significant urgency" in exp_lower or "no urgency" in exp_lower):
-        contradictions.append(f"Urgency signal is '{urgency_level}' but explanation claims no urgency indicators were detected.")
+    explanation = threat_analysis.get("explanation", "").lower()
+    if signals.get("urgency") == "high" and "no significant urgency" in explanation:
+        warnings.append("Contradiction: signals indicate high urgency but explanation claims none.")
 
-    cred_level = signals.get("credential_request", "none")
-    if cred_level in ("medium", "high") and ("no credential solicitation" in exp_lower or "no credential" in exp_lower):
-        contradictions.append(f"Credential request signal is '{cred_level}' but explanation claims no credential solicitation was detected.")
-
-    fin_level = signals.get("financial_request", "none")
-    if fin_level in ("medium", "high") and ("no financial fraud" in exp_lower or "no financial manipulation" in exp_lower or "no financial" in exp_lower):
-        contradictions.append(f"Financial request signal is '{fin_level}' but explanation claims no financial patterns were detected.")
-
-    link_level = signals.get("suspicious_link", "none")
-    if link_level in ("medium", "high") and "no deceptive links" in exp_lower:
-        contradictions.append(f"Suspicious link signal is '{link_level}' but explanation claims no deceptive links were detected.")
-
-    att_level = signals.get("attachment_threat", "none")
-    if att_level in ("medium", "high") and "no dangerous attachments" in exp_lower:
-        contradictions.append(f"Attachment threat signal is '{att_level}' but explanation claims no dangerous attachments were detected.")
-
-    # 2. Check Classification vs. Supporting Evidence
-    if primary == THREAT_BENIGN:
-        # Benign classification should not have critical signals or high urgency+fear
-        if urgency_level == "high" and signals.get("fear_manipulation") == "high":
-            contradictions.append("Primary classification is BENIGN despite high urgency and high fear manipulation signals.")
-        if cred_level == "high" and link_level == "high":
-            contradictions.append("Primary classification is BENIGN despite high credential request and high suspicious link signals.")
-
-    if primary == THREAT_CREDENTIAL_HARVESTING and cred_level == "none":
-        contradictions.append("Primary classification is CREDENTIAL_HARVESTING but credential_request signal is 'none'.")
-
-    if primary == THREAT_BEC and fin_level == "none" and signals.get("authority_pressure") == "none":
-        contradictions.append("Primary classification is BEC but neither financial_request nor authority_pressure signals were observed.")
-
-    if primary == THREAT_PHISHING and all(signals.get(k) == "none" for k in ("impersonation", "credential_request", "suspicious_link", "attachment_threat", "fear_manipulation")):
-        contradictions.append("Primary classification is PHISHING but no supporting phishing signals were observed.")
-
-    if THREAT_SOCIAL_ENGINEERING in secondaries and all(signals.get(k) in ("none", "") for k in ("urgency", "fear_manipulation", "authority_pressure")):
-        contradictions.append("Secondary threats include SOCIAL_ENGINEERING but no urgency, fear, or authority pressure signals were detected.")
-
-    # 3. Check Risk Assessment Factors vs. Signals
     if risk_assessment and isinstance(risk_assessment, dict):
-        risk_factors = risk_assessment.get("top_risk_factors", []) or []
-        for factor in risk_factors:
-            f_name = factor.get("factor", "")
-            f_pts = float(factor.get("points", 0.0))
-            if f_pts > 0:
-                if "Urgent Coercion Language" in f_name and urgency_level == "none":
-                    contradictions.append("Risk assessment awarded points for Urgent Coercion Language, but urgency threat signal is 'none'.")
-                if "Credential Prompt Language" in f_name and cred_level == "none":
-                    contradictions.append("Risk assessment awarded points for Credential Prompt Language, but credential_request signal is 'none'.")
-                if "Financial / Wire Transfer Request" in f_name and fin_level == "none":
-                    contradictions.append("Risk assessment awarded points for Financial / Wire Transfer Request, but financial_request signal is 'none'.")
-                if "Fear & Intimidation Language" in f_name and signals.get("fear_manipulation", "none") == "none":
-                    contradictions.append("Risk assessment awarded points for Fear & Intimidation Language, but fear_manipulation signal is 'none'.")
+        severity = risk_assessment.get("severity", "").upper()
+        if primary in (THREAT_PHISHING, THREAT_BEC) and confidence >= 0.85 and severity in ("LOW",):
+            warnings.append(f"Severity mismatch: threat is high-confidence {primary} but risk severity is {severity}.")
 
-    return contradictions
+    return warnings
 
+
+# Public helper aliases for unit tests and external integration
+build_funnel_of_fidelity = _build_funnel_of_fidelity
+evaluate_compound_rules = _evaluate_compound_rules
+detect_saas_abuse = _detect_saas_abuse
+map_mitre_attack = _map_mitre_attack

@@ -14,6 +14,8 @@ import type {
   EvidenceManifestResponse,
   EvidenceVerifyResponse,
   HealthResponse,
+  IoCExportResponse,
+  ThreatHuntResponse,
   UploadResponse,
 } from '../types/api';
 
@@ -25,7 +27,7 @@ function buildUrl(endpoint: string): string {
   return `${API_BASE_URL}${cleanEndpoint}`;
 }
 
-class ApiError extends Error {
+export class ApiError extends Error {
   status: number;
   code?: string;
   detail?: any;
@@ -142,6 +144,27 @@ export async function fetchGlobalCorrelation(): Promise<CorrelationOverviewRespo
  */
 export async function fetchCaseCorrelation(caseId: string): Promise<CaseCorrelationDetailResponse> {
   return request<CaseCorrelationDetailResponse>(`/api/correlation/${caseId}`);
+}
+
+/**
+ * Execute hypothesis-driven threat hunt across stored cases.
+ */
+export async function executeThreatHunt(hypothesis: string = 'ALL', query: string = ''): Promise<ThreatHuntResponse> {
+  return request<ThreatHuntResponse>('/api/correlation/hunt', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      hypothesis_type: hypothesis,
+      query: query,
+    }),
+  });
+}
+
+/**
+ * Export standardized Indicators of Compromise (IoCs) for a case.
+ */
+export async function exportCaseIoCs(caseId: string): Promise<IoCExportResponse> {
+  return request<IoCExportResponse>(`/api/correlation/export-iocs/${caseId}`);
 }
 
 // ------------------------------------------------------------------ //

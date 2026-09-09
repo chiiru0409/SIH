@@ -15,7 +15,14 @@ import {
   Mail,
   ArrowLeft,
   Printer,
-  FileText
+  FileText,
+  Crosshair,
+  Cpu,
+  Download,
+  Terminal,
+  Activity,
+  AlertTriangle,
+  FileSpreadsheet
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
@@ -26,7 +33,7 @@ import { ForensicReportModal } from './ForensicReportModal';
 import { DynamicBannerPreview } from '../threat/DynamicBannerPreview';
 import { formatDate, truncateHash } from '../../lib/utils';
 import { sanitizeHtml } from '../../lib/sanitize';
-import { remediateQuarantine } from '../../lib/api';
+import { remediateQuarantine, exportCaseIoCs } from '../../lib/api';
 import { RiskScoreHero } from '../risk/RiskScoreHero';
 import { RiskFactorsList } from '../risk/RiskFactorsList';
 import { ThreatClassificationPanel } from '../threat/ThreatClassificationPanel';
@@ -39,7 +46,7 @@ import { GeoMap } from '../infrastructure/GeoMap';
 import { InvestigationGraphView } from '../graph/InvestigationGraphView';
 import { EvidenceIntegrityPanel } from '../evidence/EvidenceIntegrityPanel';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
-import type { CaseDetail, CaseCorrelationDetailResponse } from '../../types/api';
+import type { CaseDetail, CaseCorrelationDetailResponse, IoCExportResponse } from '../../types/api';
 
 export interface CaseDetailWorkspaceProps {
   caseData: CaseDetail;
@@ -60,6 +67,9 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isHeadersModalOpen, setIsHeadersModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isIoCModalOpen, setIsIoCModalOpen] = useState(false);
+  const [iocData, setIocData] = useState<IoCExportResponse | null>(null);
+  const [loadingIoc, setLoadingIoc] = useState<boolean>(false);
   const [quarantineMsg, setQuarantineMsg] = useState<string | null>(null);
 
   const handleQuarantineAction = async (action: string) => {
@@ -69,6 +79,19 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
       setTimeout(() => setQuarantineMsg(null), 4000);
     } catch (err: any) {
       alert(`Action failed: ${err.message}`);
+    }
+  };
+
+  const handleOpenIoCModal = async () => {
+    setIsIoCModalOpen(true);
+    setLoadingIoc(true);
+    try {
+      const data = await exportCaseIoCs(caseId);
+      setIocData(data);
+    } catch (err) {
+      console.error('Failed to export IoCs:', err);
+    } finally {
+      setLoadingIoc(false);
     }
   };
 
@@ -173,6 +196,11 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
   const domainIntel = caseData?.domain_intel || (caseData as any)?.infrastructure || (caseData as any)?.email_analysis?.infrastructure || { domains: [] };
   const urlIntel = caseData?.url_intel || (caseData as any)?.infrastructure || (caseData as any)?.email_analysis?.infrastructure || { urls: [] };
 
+  const funnelOfFidelity = threatAnalysis?.funnel_of_fidelity;
+  const compoundRules = threatAnalysis?.compound_rules || [];
+  const mitreAttack = threatAnalysis?.mitre_attack || [];
+  const saasAbuse = threatAnalysis?.saas_abuse || [];
+
   const [emailViewMode, setEmailViewMode] = useState<'html' | 'plain'>('html');
 
   const rawHeaders = parsed?.raw_headers && typeof parsed.raw_headers === 'object' 
@@ -224,7 +252,7 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
   const tabs = [
     { id: 'overview', label: 'Executive Summary', icon: <ShieldAlert className="w-3.5 h-3.5" /> },
     { id: 'forensics', label: 'Deep Forensics', count: findingsCount, icon: <Search className="w-3.5 h-3.5" /> },
-    { id: 'threat', label: 'Threat Intelligence', icon: <Code className="w-3.5 h-3.5" /> },
+    { id: 'threat', label: 'Threat Intel & Fidelity', icon: <Crosshair className="w-3.5 h-3.5" /> },
     { id: 'infrastructure', label: 'Infrastructure & Geo', icon: <Compass className="w-3.5 h-3.5" /> },
     { id: 'graph', label: 'Investigation Graph', count: graphNodesCount, icon: <Network className="w-3.5 h-3.5" /> },
     { id: 'integrity', label: 'Evidence Integrity', icon: <ShieldCheck className="w-3.5 h-3.5" /> },
@@ -248,105 +276,77 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
     cc: ccRecipients,
     subject: emailSubject || null,
     date: emailDate || null,
-    message_id: messageId || null,
-    reply_to: replyToEmail || null,
-    return_path: returnPathEmail || null,
+    message_id: messageId,
+    reply_to: replyToEmail,
+    return_path: returnPathEmail,
   };
 
   const relayTraceObj = {
-    hop_count: relay?.hop_count || (Array.isArray(relay?.chain || relay?.received_chain) ? (relay?.chain || relay?.received_chain).length : 0),
-    received_chain: Array.isArray(relay?.chain || relay?.received_chain) ? (relay.chain || relay.received_chain) : [],
-    public_ips: Array.isArray(relay?.public_ips_observed || relay?.public_ips) ? (relay.public_ips_observed || relay.public_ips) : [],
+    hop_count: typeof relay?.hop_count === 'number' ? relay.hop_count : (Array.isArray(relay?.chain) ? relay.chain.length : 0),
+    received_chain: Array.isArray(relay?.chain) ? relay.chain : (Array.isArray(relay?.received_chain) ? relay.received_chain : []),
+    public_ips: Array.isArray(relay?.public_ips_observed) ? relay.public_ips_observed : (Array.isArray(relay?.public_ips) ? relay.public_ips : []),
     earliest_node: relay?.earliest_observed_node || relay?.earliest_node || null,
-    confidence_note: typeof relay?.confidence_note === 'string' ? relay.confidence_note : null,
+    confidence_note: relay?.confidence_note || null,
   };
 
-  const riskScore = typeof caseData?.risk_score === 'number' 
-    ? caseData.risk_score 
-    : (typeof (risk as any)?.risk_score === 'number' ? (risk as any).risk_score : 0);
-
-  const bannerSeverity: 'CRITICAL' | 'WARNING' | 'INFO' = riskScore >= 75 ? 'CRITICAL' : riskScore >= 40 ? 'WARNING' : 'INFO';
-
-  const warningBanner = (caseData as any)?.behavioral_relationship?.warning_banner || {
-    severity: bannerSeverity,
-    title: riskScore >= 75 
-      ? '🚨 CRITICAL: SUSPECTED PHISHING / IMPERSONATION ATTACK' 
-      : riskScore >= 40 
-      ? '⚠️ CAUTION: EXTERNAL SENDER WITH ELEVATED RISK' 
-      : 'ℹ️ NOTICE: EXTERNAL COMMUNICATION',
-    message: riskScore >= 75 
-      ? `This email scored ${riskScore}/100 and violated organizational security policies. Do not click links or provide credentials.`
-      : `Message originated outside your corporate domain from <${senderEmail || 'external'}>. Exercise standard caution.`,
-    color: riskScore >= 75 ? '#ef4444' : riskScore >= 40 ? '#f59e0b' : '#38bdf8',
-    border_color: riskScore >= 75 ? '#dc2626' : riskScore >= 40 ? '#d97706' : '#0284c7',
-    bg_color: riskScore >= 75 ? 'rgba(239, 68, 68, 0.15)' : riskScore >= 40 ? 'rgba(245, 158, 11, 0.12)' : 'rgba(2, 132, 199, 0.12)',
-    tags: [riskLabel, 'EXTERNAL', ...(Array.isArray(threatAnalysis?.tactics) ? threatAnalysis.tactics : [])],
-    html_injected: '',
-    plaintext_injected: '',
-  };
+  const warningBanner = (caseData as any)?.behavioral_relationship?.warning_banner;
 
   return (
-    <div className={`space-y-6 ${className}`}>
+    <div className={`space-y-6 animate-fade-in ${className}`}>
       
-      {/* Top Header Card / Case Metadata Bar */}
-      <Card className="border-cyber-borderLight">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      {/* Top Workspace Header Bar */}
+      <Card className="p-6 relative overflow-hidden">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           
-          {/* Back Action & Case Overview */}
           <div className="space-y-2">
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3">
               <Button
                 variant="ghost"
                 size="sm"
-                icon={<ArrowLeft className="w-3.5 h-3.5" />}
+                icon={<ArrowLeft className="w-4 h-4" />}
                 onClick={onBack}
+                className="font-mono text-xs text-slate-400 hover:text-cyber-cyan"
               >
                 Back to Cases
               </Button>
-              <Badge variant="severity" severity={riskLabel} />
+              <div className="h-4 w-px bg-cyber-border" />
+              <Badge variant="severity" severity={riskLabel} size="md">
+                {riskLabel} RISK
+              </Badge>
               {caseData?.campaign_id && (
-                <span className="px-2 py-0.5 rounded bg-purple-950/60 border border-purple-500/40 text-purple-300 font-mono text-[10px] font-bold">
-                  CAMPAIGN: {String(caseData.campaign_id)}
+                <span className="px-2 py-0.5 rounded bg-red-950/70 border border-red-500/40 text-[10px] font-mono font-bold text-red-400">
+                  {caseData.campaign_id}
                 </span>
               )}
             </div>
 
-            <div>
-              <h1 className="text-xl sm:text-2xl font-mono font-extrabold text-slate-100 flex items-center gap-2">
-                <span>CASE: {originalFilename}</span>
+            <div className="flex items-center space-x-3">
+              <h1 className="text-xl font-mono font-bold text-slate-100 truncate max-w-xl">
+                {originalFilename}
               </h1>
-              <div className="flex items-center space-x-3 text-xs font-mono text-slate-400 mt-1">
-                <span>SUBJECT: <strong className="text-slate-200">{emailSubject}</strong></span>
-                <span>•</span>
-                <span>INGESTED: {caseData?.created_at ? formatDate(caseData.created_at) : 'RECENT'}</span>
-              </div>
+              <span className="text-xs font-mono text-slate-500">
+                ({caseId.slice(0, 8)}…)
+              </span>
             </div>
-          </div>
 
-          {/* Quick Copy Identifiers & Actions */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
-            {/* Case ID Copy */}
-            {caseId && (
-              <button
-                onClick={() => copyToClipboard(caseId, 'case_id')}
-                className="px-3 py-1.5 rounded bg-cyber-bg border border-cyber-border hover:border-cyber-cyan/50 text-slate-300 font-mono text-[11px] flex items-center justify-between space-x-2 transition"
-                title="Copy full Case UUID"
-              >
-                <span>ID: {caseId.slice(0, 8)}…</span>
-                {copiedField === 'case_id' ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                ) : (
-                  <Copy className="w-3.5 h-3.5 text-slate-500" />
-                )}
-              </button>
+            {emailSubject && (
+              <p className="text-xs font-mono text-cyan-300 font-medium truncate max-w-xl">
+                {emailSubject}
+              </p>
             )}
 
-            {/* SHA-256 Copy */}
+            <p className="text-xs font-mono text-slate-400">
+              Analyzed at {formatDate(caseData?.created_at)} • SHA-256 Verified
+            </p>
+          </div>
+
+          {/* Quick Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2">
             {caseData?.evidence_hash && (
               <button
                 onClick={() => copyToClipboard(caseData.evidence_hash, 'hash')}
-                className="px-3 py-1.5 rounded bg-cyber-bg border border-cyber-border hover:border-cyber-cyan/50 text-slate-300 font-mono text-[11px] flex items-center justify-between space-x-2 transition"
-                title="Copy SHA-256 evidence anchor"
+                className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded bg-cyber-surface border border-cyber-border hover:border-cyber-cyan/40 text-xs font-mono text-slate-300 transition"
+                title="Copy SHA-256 evidence commitment hash"
               >
                 <span>SHA-256: {truncateHash(caseData.evidence_hash, 6)}</span>
                 {copiedField === 'hash' ? (
@@ -357,7 +357,7 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
               </button>
             )}
 
-            {/* Mimecast-style Quick Quarantine Button */}
+            {/* Quarantine Button */}
             <Button
               variant="danger"
               size="sm"
@@ -366,6 +366,17 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
               className="font-mono text-xs"
             >
               Quarantine
+            </Button>
+
+            {/* Export IoC Manifest Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<Crosshair className="w-3.5 h-3.5 text-indigo-400" />}
+              onClick={handleOpenIoCModal}
+              className="font-mono text-xs border-indigo-500/40 hover:border-indigo-400 text-indigo-300"
+            >
+              Export IoCs
             </Button>
 
             {/* Export Forensic Dossier Button */}
@@ -468,9 +479,174 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
         </ErrorBoundary>
       </div>
 
-      {/* TAB 3: THREAT INTELLIGENCE */}
+      {/* TAB 3: THREAT INTELLIGENCE & FIDELITY */}
       <div className={activeTab === 'threat' ? 'block space-y-6' : 'hidden'} key="tab-threat">
         <ErrorBoundary fallbackTitle="THREAT INTELLIGENCE RENDER ERROR">
+          
+          {/* Funnel of Fidelity (SpecterOps 4-Tier Model) */}
+          {funnelOfFidelity && (
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-cyber-border pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                    <Layers className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-100">Funnel of Fidelity (SpecterOps Model)</h3>
+                    <p className="text-xs text-slate-400">4-Tier Distillation: Facts → Inferences → Compounds → Verdict</p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                  {funnelOfFidelity.fidelity_tier}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* Tier 1 */}
+                <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2">
+                  <div className="text-xs font-bold text-cyan-400 uppercase tracking-wider">Tier 1: Observed Facts</div>
+                  <div className="space-y-1 text-xs text-slate-300">
+                    {funnelOfFidelity.tier_1_observed_facts.map((fact: string, i: number) => (
+                      <div key={i} className="flex items-start gap-1.5">
+                        <span className="text-cyan-400">•</span>
+                        <span className="line-clamp-2">{fact}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tier 2 */}
+                <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2">
+                  <div className="text-xs font-bold text-amber-400 uppercase tracking-wider">Tier 2: Inferences</div>
+                  <div className="space-y-1 text-xs text-slate-300">
+                    {funnelOfFidelity.tier_2_behavioral_signals.slice(0, 4).map((sig: any, i: number) => (
+                      <div key={i} className="flex items-start gap-1.5">
+                        <span className="text-amber-400">•</span>
+                        <span className="line-clamp-2">{sig.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tier 3 */}
+                <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2">
+                  <div className="text-xs font-bold text-rose-400 uppercase tracking-wider">Tier 3: Compound Rules</div>
+                  <div className="space-y-1 text-xs text-slate-300">
+                    {funnelOfFidelity.tier_3_compound_detections.length > 0 ? (
+                      funnelOfFidelity.tier_3_compound_detections.map((cr: any, i: number) => (
+                        <div key={i} className="flex items-start gap-1.5">
+                          <span className="text-rose-400">⚡</span>
+                          <span className="font-mono text-[11px] text-rose-300">{cr.name}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <span className="text-xs text-slate-500 italic">No compound alerts</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Tier 4 */}
+                <div className="p-4 bg-indigo-950/40 rounded-xl border border-indigo-800/60 space-y-2">
+                  <div className="text-xs font-bold text-indigo-300 uppercase tracking-wider">Tier 4: Actionable Verdict</div>
+                  <div className="text-lg font-bold text-white">
+                    {funnelOfFidelity.tier_4_actionable_verdict.verdict}
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    Confidence: {Math.round(funnelOfFidelity.tier_4_actionable_verdict.confidence * 100)}%
+                  </div>
+                  <div className="text-[11px] font-mono text-indigo-400">
+                    {funnelOfFidelity.tier_4_actionable_verdict.requires_quarantine ? '⚠️ QUARANTINE REQUIRED' : '✓ DELIVER WITH BANNER'}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* MITRE ATT&CK for Enterprise Email Mapping */}
+          {mitreAttack && mitreAttack.length > 0 && (
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-cyber-border pb-3">
+                <div className="flex items-center gap-2">
+                  <Terminal className="w-5 h-5 text-cyber-cyan" />
+                  <h3 className="text-base font-bold text-slate-100">MITRE ATT&CK® Enterprise Email Matrix</h3>
+                </div>
+                <span className="text-xs font-mono text-slate-400">{mitreAttack.length} Techniques Mapped</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {mitreAttack.map((tech: any) => (
+                  <div key={tech.id || tech.technique_id} className="p-3 bg-slate-950/60 rounded-lg border border-slate-800 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                        {tech.technique_id || tech.id}
+                      </span>
+                      <span className="text-[10px] uppercase font-mono text-slate-400">{tech.tactic}</span>
+                    </div>
+                    <div className="text-xs font-semibold text-slate-200">{tech.name}</div>
+                    <p className="text-[11px] text-slate-400 line-clamp-2">{tech.description}</p>
+                    <a
+                      href={tech.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] font-mono text-cyber-cyan hover:underline flex items-center gap-1 pt-1"
+                    >
+                      MITRE Reference <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Living off Legitimate Services (LOLServices) Alert */}
+          {saasAbuse && saasAbuse.length > 0 && (
+            <div className="p-4 bg-amber-950/30 border border-amber-500/40 rounded-xl space-y-2">
+              <div className="flex items-center gap-2 text-amber-300 text-sm font-bold">
+                <Cpu className="w-4 h-4 text-amber-400" />
+                Living off Legitimate Services (LOLServices) Detected
+              </div>
+              <p className="text-xs text-slate-300">
+                Attacker leverages trusted public cloud platforms to bypass domain reputation scoring:
+              </p>
+              <div className="flex flex-wrap gap-2 pt-1">
+                {saasAbuse.map((saas: any, idx: number) => (
+                  <div key={idx} className="px-3 py-1 bg-slate-900 rounded-lg border border-amber-500/30 text-xs font-mono text-amber-200">
+                    {saas.platform}: <span className="text-slate-400">{saas.url.slice(0, 50)}…</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Palantir ADS Incident Playbook */}
+          {(caseData as any)?.policy_evaluation?.incident_playbook && (
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-cyber-border pb-3">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-emerald-400" />
+                  <h3 className="text-base font-bold text-slate-100">SOC Incident Playbook (Palantir ADS Framework)</h3>
+                </div>
+                <span className="text-xs font-mono text-emerald-400">L2 Actionable Workflow</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries((caseData as any).policy_evaluation.incident_playbook.phases).map(([phaseKey, phaseObj]: any) => (
+                  <div key={phaseKey} className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2">
+                    <div className="text-xs font-bold text-slate-200 uppercase tracking-wider">{phaseObj.title}</div>
+                    <ul className="space-y-1.5 text-xs text-slate-300">
+                      {phaseObj.actions.map((act: string, aIdx: number) => (
+                        <li key={aIdx} className="flex items-start gap-2">
+                          <span className="text-emerald-400 mt-0.5">•</span>
+                          <span>{act}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
           <ThreatClassificationPanel threatAnalysis={threatAnalysis} />
           <RiskFactorsList factors={risk?.top_factors?.length ? risk.top_factors : (risk?.risk_factors || [])} />
         </ErrorBoundary>
@@ -503,120 +679,191 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
         </ErrorBoundary>
       </div>
 
-      {/* TAB 6: EVIDENCE INTEGRITY & BLOCKCHAIN ANCHORING */}
+      {/* TAB 6: EVIDENCE INTEGRITY */}
       <div className={activeTab === 'integrity' ? 'block space-y-6' : 'hidden'} key="tab-integrity">
         <ErrorBoundary fallbackTitle="EVIDENCE INTEGRITY RENDER ERROR">
           <EvidenceIntegrityPanel
             caseId={caseId}
-            initialEvidenceHash={caseData?.evidence_hash}
           />
         </ErrorBoundary>
       </div>
 
-      {/* TAB 7: EMAIL CONTENT (SAFE SANITIZED PREVIEW) */}
-      <div className={activeTab === 'raw_email' ? 'block space-y-6' : 'hidden'} key="tab-raw_email">
-        <ErrorBoundary fallbackTitle="EMAIL PREVIEW RENDER ERROR">
-          <Card
-            title="EXTRACTED EMAIL BODY & MIME CONTENT"
-            subtitle="Sandboxed defense-in-depth HTML rendering (scripts stripped, active clicks defanged) & plain text audit"
-            icon={<Mail className="w-4 h-4 text-cyber-cyan" />}
-            headerActions={
+      {/* TAB 7: RAW EMAIL & HEADERS */}
+      <div className={activeTab === 'raw_email' ? 'block space-y-6' : 'hidden'} key="tab-raw-email">
+        <ErrorBoundary fallbackTitle="EMAIL CONTENT RENDER ERROR">
+          <Card className="p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-cyber-border pb-3">
+              <div className="flex items-center space-x-2">
+                <Mail className="w-4 h-4 text-cyber-cyan" />
+                <h3 className="font-mono text-sm font-bold text-slate-100 uppercase">
+                  Sanitized Email Payload Viewer
+                </h3>
+              </div>
+              
               <div className="flex items-center space-x-2">
                 {emailHtml && (
-                  <div className="flex items-center space-x-1 p-0.5 rounded-lg bg-cyber-bg border border-cyber-border font-mono text-[11px]">
-                    <button
-                      onClick={() => setEmailViewMode('html')}
-                      className={`px-2.5 py-1 rounded transition ${
-                        emailViewMode === 'html'
-                          ? 'bg-cyber-card text-cyber-cyan font-bold border border-cyber-cyan/40 shadow-[0_0_8px_rgba(0,240,255,0.2)]'
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      RENDERED HTML
-                    </button>
-                    <button
-                      onClick={() => setEmailViewMode('plain')}
-                      className={`px-2.5 py-1 rounded transition ${
-                        emailViewMode === 'plain'
-                          ? 'bg-cyber-card text-cyber-cyan font-bold border border-cyber-cyan/40 shadow-[0_0_8px_rgba(0,240,255,0.2)]'
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      PLAIN TEXT
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => setEmailViewMode('html')}
+                    className={`px-3 py-1 rounded text-xs font-mono transition ${
+                      emailViewMode === 'html'
+                        ? 'bg-cyber-cyan/20 text-cyber-cyan border border-cyber-cyan/40 font-bold'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    HTML
+                  </button>
                 )}
                 <button
-                  onClick={() => copyToClipboard(emailText || (rawHtml || ''), 'body')}
-                  className="px-2.5 py-1 rounded bg-cyber-bg border border-cyber-border hover:border-cyber-cyan/50 text-slate-300 font-mono text-xs flex items-center space-x-1.5 transition"
-                  title="Copy email body to clipboard"
+                  onClick={() => setEmailViewMode('plain')}
+                  className={`px-3 py-1 rounded text-xs font-mono transition ${
+                    emailViewMode === 'plain'
+                      ? 'bg-cyber-cyan/20 text-cyber-cyan border border-cyber-cyan/40 font-bold'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
                 >
-                  {copiedField === 'body' ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-emerald-400">COPIED</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5 text-slate-400" />
-                      <span>COPY BODY</span>
-                    </>
-                  )}
+                  Plain Text
                 </button>
               </div>
-            }
-          >
-            <div className="space-y-4">
-              {emailHtml && emailViewMode === 'html' ? (
-                <div className="p-5 rounded-lg bg-slate-900/90 border border-cyber-border max-h-[600px] overflow-y-auto">
-                  <div
-                    dangerouslySetInnerHTML={{ __html: emailHtml }}
-                    className="prose prose-invert max-w-none text-slate-200 text-xs leading-relaxed"
-                  />
-                </div>
-              ) : (
-                <pre className="p-5 rounded-lg bg-slate-950 border border-cyber-border font-mono text-xs text-slate-200 whitespace-pre-wrap max-h-[600px] overflow-y-auto leading-relaxed shadow-inner">
-                  {emailText || '(No plain-text body content extracted)'}
-                </pre>
-              )}
             </div>
+
+            {/* Rendered Email Content with Safe Sandboxing */}
+            {emailViewMode === 'html' && emailHtml ? (
+              <div className="p-4 bg-white text-slate-900 rounded-lg overflow-auto max-h-[600px] border border-cyber-border">
+                <div
+                  dangerouslySetInnerHTML={{ __html: emailHtml }}
+                  className="prose prose-sm max-w-none font-sans"
+                />
+              </div>
+            ) : (
+              <pre className="p-4 bg-cyber-bg text-slate-300 font-mono text-xs rounded-lg overflow-auto max-h-[600px] border border-cyber-border whitespace-pre-wrap">
+                {emailText || '(No plain text body content found in message)'}
+              </pre>
+            )}
           </Card>
         </ErrorBoundary>
       </div>
 
-      {/* Raw RFC 5322 Headers Modal */}
+      {/* Raw Headers Modal */}
       <Modal
         isOpen={isHeadersModalOpen}
         onClose={() => setIsHeadersModalOpen(false)}
-        title="RFC 5322 RAW HEADER AUDIT"
-        subtitle={`Case ID: ${caseId}`}
+        title="RFC-822 Raw Headers Inspector"
         maxWidth="4xl"
       >
         <div className="space-y-4">
-          <div className="p-3 bg-cyber-bg rounded-lg border border-cyber-border font-mono text-xs space-y-2 max-h-[65vh] overflow-y-auto">
-            {!rawHeaders || Object.keys(rawHeaders).length === 0 ? (
-              <div className="text-slate-500">No raw headers available.</div>
-            ) : (
-              Object.entries(rawHeaders).map(([hdrKey, val]) => (
-                <div key={hdrKey} className="pb-2 border-b border-cyber-border/40 last:border-b-0">
-                  <span className="font-bold text-cyber-cyan select-all">{hdrKey}: </span>
-                  <span className="text-slate-300 break-all select-all">
-                    {Array.isArray(val) ? val.join('\n  ') : String(val)}
-                  </span>
-                </div>
-              ))
-            )}
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono text-slate-400">
+              Total Header Fields: {Object.keys(rawHeaders).length}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<Copy className="w-3.5 h-3.5" />}
+              onClick={() => copyToClipboard(JSON.stringify(rawHeaders, null, 2), 'raw_headers')}
+            >
+              {copiedField === 'raw_headers' ? 'Copied' : 'Copy All'}
+            </Button>
           </div>
+
+          <pre className="p-4 bg-cyber-bg text-cyber-cyan font-mono text-xs rounded-lg overflow-auto max-h-[500px] border border-cyber-border whitespace-pre-wrap">
+            {JSON.stringify(rawHeaders, null, 2)}
+          </pre>
         </div>
       </Modal>
 
-      {/* Forensic Report Dossier Modal */}
-      <ForensicReportModal
-        isOpen={isReportModalOpen}
-        onClose={() => setIsReportModalOpen(false)}
-        caseData={caseData}
-        correlationData={correlationData}
-      />
+      {/* IoC Manifest Export Modal */}
+      <Modal
+        isOpen={isIoCModalOpen}
+        onClose={() => setIsIoCModalOpen(false)}
+        title="Standardized Technical IoC Manifest (SIEM / EDR)"
+        maxWidth="4xl"
+      >
+        <div className="space-y-4">
+          {loadingIoc ? (
+            <div className="py-12 text-center text-slate-400 font-mono text-xs">
+              Extracting Indicators of Compromise…
+            </div>
+          ) : iocData ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-mono text-slate-300">
+                  Total IoCs Identified: <strong className="text-white">{iocData.total_iocs}</strong>
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    icon={<Copy className="w-3.5 h-3.5" />}
+                    onClick={() => copyToClipboard(iocData.csv_export, 'csv_ioc')}
+                  >
+                    {copiedField === 'csv_ioc' ? 'Copied CSV' : 'Copy CSV'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    icon={<Download className="w-3.5 h-3.5" />}
+                    onClick={() => {
+                      const blob = new Blob([iocData.csv_export], { type: 'text/csv' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `mailtrace-iocs-${caseId.slice(0, 8)}.csv`;
+                      a.click();
+                    }}
+                  >
+                    Download CSV
+                  </Button>
+                </div>
+              </div>
+
+              {/* IoC Table */}
+              <div className="overflow-x-auto rounded-lg border border-slate-800">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead className="bg-slate-900 text-slate-400 border-b border-slate-800">
+                    <tr>
+                      <th className="p-2.5">Type</th>
+                      <th className="p-2.5">Indicator Value</th>
+                      <th className="p-2.5">Context</th>
+                      <th className="p-2.5">MITRE Tactic</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 text-slate-300">
+                    {iocData.iocs.map((ioc: any, idx: number) => (
+                      <tr key={idx} className="hover:bg-slate-900/40">
+                        <td className="p-2.5 text-indigo-400 uppercase font-semibold">{ioc.type}</td>
+                        <td className="p-2.5 text-white truncate max-w-xs">{ioc.value}</td>
+                        <td className="p-2.5 text-slate-400">{ioc.context}</td>
+                        <td className="p-2.5 text-emerald-400">{ioc.mitre_tactic}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* STIX 2.1 Patterns */}
+              <div className="space-y-1.5">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  STIX 2.1 Pattern Mappings:
+                </span>
+                <pre className="p-3 bg-slate-950 rounded-lg border border-slate-800 font-mono text-[11px] text-slate-300 overflow-x-auto">
+                  {iocData.stix_patterns.join('\n')}
+                </pre>
+              </div>
+            </div>
+          ) : (
+            <div className="text-xs text-rose-400">Failed to load IoC manifest.</div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Forensic Report Export Dossier Modal */}
+      {isReportModalOpen && (
+        <ForensicReportModal
+          isOpen={isReportModalOpen}
+          onClose={() => setIsReportModalOpen(false)}
+          caseData={caseData}
+        />
+      )}
 
     </div>
   );

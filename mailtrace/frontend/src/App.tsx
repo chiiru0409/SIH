@@ -15,6 +15,7 @@ import { InvestigationGraphView } from './components/graph/InvestigationGraphVie
 import { CampaignClusterView } from './components/campaign/CampaignClusterView';
 import { CaseListView } from './components/cases/CaseListView';
 import { CaseDetailWorkspace } from './components/cases/CaseDetailWorkspace';
+import { ThreatHuntingWorkbench } from './components/hunting/ThreatHuntingWorkbench';
 import { TenantLiveMonitor } from './components/tenant/TenantLiveMonitor';
 import { QuarantinePolicyHub } from './components/policy/QuarantinePolicyHub';
 import { ComplianceAuditPanel } from './components/compliance/ComplianceAuditPanel';
@@ -276,6 +277,11 @@ export const App: React.FC = () => {
                   />
                 </div>
               )}
+            </div>
+
+            {/* THREAT HUNTING WORKBENCH TAB */}
+            <div className={activeTab === 'hunting' ? 'block space-y-6' : 'hidden'} key="global-tab-hunting">
+              <ThreatHuntingWorkbench onSelectCase={handleSelectCase} />
             </div>
 
             {/* FORENSICS TAB */}
