@@ -3,7 +3,16 @@ import { UploadZone } from '../components/upload/UploadZone';
 import { useInvestigation } from '../context/InvestigationContext';
 
 export const UploadPage: React.FC = () => {
-  const { setActiveTab } = useInvestigation();
+  const { setActiveTab, ingestUploadedCase, selectAndInvestigate } = useInvestigation();
+
+  const handleAnalysisComplete = (res: any) => {
+    if (res) {
+      const createdCase = ingestUploadedCase(res);
+      selectAndInvestigate(createdCase.id);
+    } else {
+      setActiveTab('investigation');
+    }
+  };
 
   return (
     <div className="space-y-4 max-w-4xl mx-auto">
@@ -17,8 +26,11 @@ export const UploadPage: React.FC = () => {
       </div>
 
       <UploadZone
-        onAnalysisComplete={(res) => {
-          console.log('Analysis Complete:', res);
+        onAnalysisComplete={handleAnalysisComplete}
+        onUploadSuccess={(res) => {
+          if (res) {
+            ingestUploadedCase(res);
+          }
         }}
         onViewInvestigations={() => {
           setActiveTab('investigation');
