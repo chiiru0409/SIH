@@ -9,7 +9,10 @@ import {
   FolderLock, 
   Upload, 
   CheckCircle2, 
-  AlertCircle 
+  AlertCircle,
+  Cloud,
+  Lock,
+  Award
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 
@@ -35,9 +38,11 @@ export const Header: React.FC<HeaderProps> = ({
   const navItems = [
     { id: 'overview', label: 'Analysis & Ingest', icon: <Upload className="w-3.5 h-3.5" /> },
     { id: 'forensics', label: 'Forensics', icon: <Search className="w-3.5 h-3.5" /> },
+    { id: 'tenants', label: 'Cloud Tenants', icon: <Cloud className="w-3.5 h-3.5" /> },
+    { id: 'quarantine', label: 'Quarantine & Policy', icon: <Lock className="w-3.5 h-3.5" /> },
+    { id: 'compliance', label: 'Compliance', icon: <Award className="w-3.5 h-3.5" /> },
     { id: 'infrastructure', label: 'Infrastructure & Geo', icon: <Compass className="w-3.5 h-3.5" /> },
     { id: 'graph', label: 'Investigation Graph', icon: <Network className="w-3.5 h-3.5" /> },
-    { id: 'campaigns', label: 'Campaign Clusters', icon: <Layers className="w-3.5 h-3.5" /> },
     { id: 'cases', label: 'Case Repository', icon: <FolderLock className="w-3.5 h-3.5" /> },
   ];
 

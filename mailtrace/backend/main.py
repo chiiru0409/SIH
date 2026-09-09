@@ -23,7 +23,7 @@ from fastapi.responses import RedirectResponse
 
 from backend.config import settings
 from backend.database import ACTIVE_DATABASE_URL, init_db, mask_database_url
-from backend.routes import health, analyze, correlation, evidence
+from backend.routes import health, analyze, correlation, evidence, policy, tenants, compliance
 
 
 # ------------------------------------------------------------------ #
@@ -125,6 +125,9 @@ app.include_router(health.router)
 app.include_router(analyze.router)
 app.include_router(correlation.router)
 app.include_router(evidence.router)
+app.include_router(policy.router)
+app.include_router(tenants.router)
+app.include_router(compliance.router)
 
 
 # ------------------------------------------------------------------ #

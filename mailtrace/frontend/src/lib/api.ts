@@ -177,3 +177,71 @@ export async function anchorEvidence(caseId: string): Promise<BlockchainAnchorRe
 export async function fetchChainOfCustody(caseId: string): Promise<ChainOfCustodyResponse> {
   return request<ChainOfCustodyResponse>(`/api/evidence/${caseId}/chain`);
 }
+
+// ------------------------------------------------------------------ //
+//  Enterprise API Calls (Sentaro / GreatHorn / Mimecast)             //
+// ------------------------------------------------------------------ //
+
+/**
+ * Fetch active cloud tenant configurations (Microsoft 365, Google Workspace).
+ */
+export async function fetchTenants(): Promise<{ tenants: any[] }> {
+  return request<{ tenants: any[] }>('/api/tenants/list');
+}
+
+/**
+ * Fetch live tenant email threat stream.
+ */
+export async function fetchTenantStream(): Promise<{ events: any[] }> {
+  return request<{ events: any[] }>('/api/tenants/stream');
+}
+
+/**
+ * Fetch SOC Quarantine Vault items.
+ */
+export async function fetchQuarantineVault(): Promise<{ quarantined_items: any[] }> {
+  return request<{ quarantined_items: any[] }>('/api/policy/quarantine');
+}
+
+/**
+ * Remediate a quarantined email item (RELEASE, PURGE, BLOCK_SENDER).
+ */
+export async function remediateQuarantine(caseId: string, action: string, notes?: string): Promise<any> {
+  return request<any>(`/api/policy/quarantine/${caseId}/remediate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, notes }),
+  });
+}
+
+/**
+ * Fetch enterprise policy rules.
+ */
+export async function fetchPolicyRules(): Promise<{ policies: any[] }> {
+  return request<{ policies: any[] }>('/api/policy/rules');
+}
+
+/**
+ * Fetch enterprise blocklist.
+ */
+export async function fetchBlocklist(): Promise<{ blocklist: any[] }> {
+  return request<{ blocklist: any[] }>('/api/policy/blocklist');
+}
+
+/**
+ * Add entry to enterprise blocklist.
+ */
+export async function addToBlocklist(type: string, value: string, reason?: string): Promise<any> {
+  return request<any>('/api/policy/blocklist', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type, value, reason }),
+  });
+}
+
+/**
+ * Fetch regulatory compliance audit scorecard (NIS2, DORA, SOC 2).
+ */
+export async function fetchComplianceScorecard(): Promise<any> {
+  return request<any>('/api/compliance/scorecard');
+}

@@ -23,8 +23,10 @@ import { Button } from '../ui/Button';
 import { Tabs } from '../ui/Tabs';
 import { Modal } from '../ui/Modal';
 import { ForensicReportModal } from './ForensicReportModal';
+import { DynamicBannerPreview } from '../threat/DynamicBannerPreview';
 import { formatDate, truncateHash } from '../../lib/utils';
 import { sanitizeHtml } from '../../lib/sanitize';
+import { remediateQuarantine } from '../../lib/api';
 import { RiskScoreHero } from '../risk/RiskScoreHero';
 import { RiskFactorsList } from '../risk/RiskFactorsList';
 import { ThreatClassificationPanel } from '../threat/ThreatClassificationPanel';
@@ -58,6 +60,17 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isHeadersModalOpen, setIsHeadersModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [quarantineMsg, setQuarantineMsg] = useState<string | null>(null);
+
+  const handleQuarantineAction = async (action: string) => {
+    try {
+      await remediateQuarantine(caseId, action, `Direct action ${action} from Case Workspace`);
+      setQuarantineMsg(`Case ${caseId.slice(0, 8)} successfully marked as ${action}.`);
+      setTimeout(() => setQuarantineMsg(null), 4000);
+    } catch (err: any) {
+      alert(`Action failed: ${err.message}`);
+    }
+  };
 
   const copyToClipboard = (text?: string | null, field?: string) => {
     if (!text || !field) return;
@@ -248,6 +261,30 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
     confidence_note: typeof relay?.confidence_note === 'string' ? relay.confidence_note : null,
   };
 
+  const riskScore = typeof caseData?.risk_score === 'number' 
+    ? caseData.risk_score 
+    : (typeof (risk as any)?.risk_score === 'number' ? (risk as any).risk_score : 0);
+
+  const bannerSeverity: 'CRITICAL' | 'WARNING' | 'INFO' = riskScore >= 75 ? 'CRITICAL' : riskScore >= 40 ? 'WARNING' : 'INFO';
+
+  const warningBanner = (caseData as any)?.behavioral_relationship?.warning_banner || {
+    severity: bannerSeverity,
+    title: riskScore >= 75 
+      ? '🚨 CRITICAL: SUSPECTED PHISHING / IMPERSONATION ATTACK' 
+      : riskScore >= 40 
+      ? '⚠️ CAUTION: EXTERNAL SENDER WITH ELEVATED RISK' 
+      : 'ℹ️ NOTICE: EXTERNAL COMMUNICATION',
+    message: riskScore >= 75 
+      ? `This email scored ${riskScore}/100 and violated organizational security policies. Do not click links or provide credentials.`
+      : `Message originated outside your corporate domain from <${senderEmail || 'external'}>. Exercise standard caution.`,
+    color: riskScore >= 75 ? '#ef4444' : riskScore >= 40 ? '#f59e0b' : '#38bdf8',
+    border_color: riskScore >= 75 ? '#dc2626' : riskScore >= 40 ? '#d97706' : '#0284c7',
+    bg_color: riskScore >= 75 ? 'rgba(239, 68, 68, 0.15)' : riskScore >= 40 ? 'rgba(245, 158, 11, 0.12)' : 'rgba(2, 132, 199, 0.12)',
+    tags: [riskLabel, 'EXTERNAL', ...(Array.isArray(threatAnalysis?.tactics) ? threatAnalysis.tactics : [])],
+    html_injected: '',
+    plaintext_injected: '',
+  };
+
   return (
     <div className={`space-y-6 ${className}`}>
       
@@ -320,6 +357,17 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
               </button>
             )}
 
+            {/* Mimecast-style Quick Quarantine Button */}
+            <Button
+              variant="danger"
+              size="sm"
+              icon={<ShieldAlert className="w-3.5 h-3.5" />}
+              onClick={() => handleQuarantineAction('QUARANTINED')}
+              className="font-mono text-xs"
+            >
+              Quarantine
+            </Button>
+
             {/* Export Forensic Dossier Button */}
             <Button
               variant="outline"
@@ -344,6 +392,14 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
 
         </div>
 
+        {/* Quarantine Success Toast */}
+        {quarantineMsg && (
+          <div className="mt-4 p-3 bg-red-950/80 border border-red-500/50 rounded-lg text-xs font-mono text-red-300 flex items-center space-x-2">
+            <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
+            <span>{quarantineMsg}</span>
+          </div>
+        )}
+
         {/* Navigation Tabs */}
         <div className="mt-6 pt-4 border-t border-cyber-border/80">
           <Tabs
@@ -362,6 +418,10 @@ export const CaseDetailWorkspace: React.FC<CaseDetailWorkspaceProps> = ({
       {/* TAB 1: EXECUTIVE SUMMARY */}
       <div className={activeTab === 'overview' ? 'block space-y-6' : 'hidden'} key="tab-overview">
         <ErrorBoundary fallbackTitle="EXECUTIVE SUMMARY RENDER ERROR">
+          
+          {/* GreatHorn-style Dynamic Warning Banner */}
+          <DynamicBannerPreview banner={warningBanner} />
+
           {/* Top Row: Risk Hero + Threat Panel */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <RiskScoreHero riskAssessment={risk as any} />

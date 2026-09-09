@@ -495,3 +495,115 @@ export interface BlockchainAnchorResponse {
   network: string | null;
   message: string;
 }
+
+// ------------------------------------------------------------------ //
+//  6. Enterprise Ecosystem Schemas (Sentaro / GreatHorn / Mimecast)  //
+// ------------------------------------------------------------------ //
+
+export interface WarningBannerInfo {
+  severity: 'CRITICAL' | 'WARNING' | 'INFO' | 'NONE';
+  title: string;
+  message: string;
+  color: string;
+  border_color: string;
+  bg_color: string;
+  tags: string[];
+  html_injected: string;
+  plaintext_injected: string;
+}
+
+export interface BehavioralRelationshipInfo {
+  relationship_tier: string;
+  familiarity_score: number;
+  is_first_time_sender: boolean;
+  is_freemail_provider: boolean;
+  warning_banner: WarningBannerInfo;
+}
+
+export interface PolicyRuleItem {
+  id: string;
+  name: string;
+  enabled: boolean;
+  condition: string;
+  action: string;
+  description: string;
+}
+
+export interface QuarantinedItem {
+  case_id: string;
+  filename: string;
+  sender_email?: string | null;
+  sender_display?: string | null;
+  sender_domain?: string | null;
+  subject: string;
+  risk_score: number;
+  quarantined_at: string;
+  status: string;
+  reason: string;
+  triggered_rules: string[];
+  analyst_notes?: string | null;
+}
+
+export interface BlocklistEntry {
+  id: string;
+  type: 'DOMAIN' | 'SENDER' | 'IP' | string;
+  value: string;
+  reason: string;
+  added_at: string;
+  added_by: string;
+}
+
+export interface CloudTenantItem {
+  id: string;
+  provider: 'MICROSOFT_365' | 'GOOGLE_WORKSPACE' | 'SMTP_GATEWAY' | string;
+  name: string;
+  domain: string;
+  status: string;
+  sync_mode: string;
+  mailboxes_monitored: number;
+  threats_intercepted_today: number;
+  last_sync: string;
+  health: string;
+}
+
+export interface LiveTenantStreamEvent {
+  event_id: string;
+  timestamp: string;
+  tenant_id: string;
+  tenant_name: string;
+  sender: string;
+  display_name?: string | null;
+  recipient: string;
+  subject: string;
+  risk_score: number;
+  severity: string;
+  intent: string;
+  policy_action: string;
+}
+
+export interface ComplianceControl {
+  ref: string;
+  title: string;
+  requirement: string;
+  status: 'PASS' | 'FAIL' | 'PARTIAL';
+  mailtrace_mapping: string;
+}
+
+export interface ComplianceFramework {
+  id: string;
+  name: string;
+  category: string;
+  score: number;
+  status: string;
+  controls: ComplianceControl[];
+}
+
+export interface ComplianceScorecardResponse {
+  overall_compliance_score: number;
+  overall_status: string;
+  total_controls_audited: number;
+  passing_controls: number;
+  failing_controls: number;
+  last_audited: string;
+  frameworks: ComplianceFramework[];
+}

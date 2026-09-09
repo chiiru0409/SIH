@@ -28,9 +28,13 @@ from backend.services.evidence_integrity import (
     compute_parsed_evidence_hash,
     record_chain_event,
 )
+from backend.services.behavioral_graph import evaluate_behavioral_relationship
+from backend.services.compliance import get_compliance_scorecard
 from backend.services.forensics import run_forensic_analysis
 from backend.services.intelligence import enrich_infrastructure
+from backend.services.policy_engine import evaluate_policies
 from backend.services.risk_engine import calculate_risk
+from backend.services.tenant_connector import add_stream_event
 from backend.services.threat_analyzer import analyze_threat
 
 logger = logging.getLogger("mailtrace.routes.analyze")
@@ -135,6 +139,26 @@ def _build_upload_response(
             "severity": case.risk_label,
             "risk_factors": [],
         }),
+        "behavioral_relationship": evaluate_behavioral_relationship(
+            sender_email=sender.get("email"),
+            sender_display=sender.get("display_name"),
+            sender_domain=sender.get("domain"),
+            recipients=[r.get("email") for r in recips.get("to", [])],
+            risk_score=float((risk or {}).get("risk_score", case.risk_score or 0)),
+            forensic_findings=(forensic or {}).get("findings", []),
+            threat_classification=threat,
+        ),
+        "policy_evaluation": evaluate_policies(
+            case_id=case.id,
+            original_filename=case.original_filename,
+            sender_email=sender.get("email"),
+            sender_display=sender.get("display_name"),
+            sender_domain=sender.get("domain"),
+            subject=headers.get("subject"),
+            risk_score=float((risk or {}).get("risk_score", case.risk_score or 0)),
+            threat_classification=threat,
+            forensic_findings=(forensic or {}).get("findings", []),
+        ),
         "parse_errors": parsed.get("parse_errors", []),
     }
 

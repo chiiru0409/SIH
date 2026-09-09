@@ -15,6 +15,9 @@ import { InvestigationGraphView } from './components/graph/InvestigationGraphVie
 import { CampaignClusterView } from './components/campaign/CampaignClusterView';
 import { CaseListView } from './components/cases/CaseListView';
 import { CaseDetailWorkspace } from './components/cases/CaseDetailWorkspace';
+import { TenantLiveMonitor } from './components/tenant/TenantLiveMonitor';
+import { QuarantinePolicyHub } from './components/policy/QuarantinePolicyHub';
+import { ComplianceAuditPanel } from './components/compliance/ComplianceAuditPanel';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { Alert } from './components/ui/Alert';
 import { 
@@ -319,6 +322,21 @@ export const App: React.FC = () => {
                 correlations={Array.isArray(globalCorrelation?.correlations) ? globalCorrelation.correlations : []}
                 onSelectCase={handleSelectCase}
               />
+            </div>
+
+            {/* CLOUD TENANTS TAB (Sentaro style) */}
+            <div className={activeTab === 'tenants' ? 'block space-y-6' : 'hidden'} key="global-tab-tenants">
+              <TenantLiveMonitor />
+            </div>
+
+            {/* QUARANTINE & POLICIES TAB (Mimecast style) */}
+            <div className={activeTab === 'quarantine' ? 'block space-y-6' : 'hidden'} key="global-tab-quarantine">
+              <QuarantinePolicyHub />
+            </div>
+
+            {/* COMPLIANCE SCORECARD TAB (Sentaro style) */}
+            <div className={activeTab === 'compliance' ? 'block space-y-6' : 'hidden'} key="global-tab-compliance">
+              <ComplianceAuditPanel />
             </div>
 
             {/* CASE REPOSITORY TAB */}
