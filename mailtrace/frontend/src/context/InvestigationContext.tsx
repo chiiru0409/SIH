@@ -36,8 +36,8 @@ interface InvestigationContextType {
   setActiveTab: (tab: ActiveTab) => void;
   activeCaseId: string;
   setActiveCaseId: (id: string) => void;
-  activeCase: InvestigationCase | undefined;
-  activeEmail: EmailMetadata | undefined;
+  activeCase: InvestigationCase;
+  activeEmail: EmailMetadata;
   cases: InvestigationCase[];
   emails: EmailMetadata[];
   campaigns: CampaignCluster[];
@@ -55,9 +55,9 @@ interface InvestigationContextType {
   reloadCasesFromBackend: () => Promise<void>;
 }
 
-const STORAGE_CASES_KEY = 'mailtrace_custom_cases';
-const STORAGE_EMAILS_KEY = 'mailtrace_custom_emails';
-const STORAGE_EVIDENCE_KEY = 'mailtrace_custom_evidence';
+const STORAGE_CASES_KEY = 'mailtrace_custom_cases_v2';
+const STORAGE_EMAILS_KEY = 'mailtrace_custom_emails_v2';
+const STORAGE_EVIDENCE_KEY = 'mailtrace_custom_evidence_v2';
 
 const InvestigationContext = createContext<InvestigationContextType | undefined>(undefined);
 
@@ -65,11 +65,21 @@ export const InvestigationProvider: React.FC<{ children: React.ReactNode }> = ({
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
   const [activeCaseId, setActiveCaseId] = useState<string>('CASE-2026-0842');
 
-  // Load custom stored records from local storage if available
+  // Load custom stored records from local storage with defensive validation
   const [customCases, setCustomCases] = useState<InvestigationCase[]>(() => {
     try {
       const item = localStorage.getItem(STORAGE_CASES_KEY);
-      return item ? JSON.parse(item) : [];
+      if (!item) return [];
+      const parsed = JSON.parse(item);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter(c => c && (c.id || c.case_id))
+        .map(c => {
+          if (c.verdict && c.explainableFindings && c.verdict.riskScoreBreakdown) {
+            return c;
+          }
+          return adaptUploadResponseToModels(c).investigationCase;
+        });
     } catch {
       return [];
     }
@@ -78,7 +88,10 @@ export const InvestigationProvider: React.FC<{ children: React.ReactNode }> = ({
   const [customEmails, setCustomEmails] = useState<EmailMetadata[]>(() => {
     try {
       const item = localStorage.getItem(STORAGE_EMAILS_KEY);
-      return item ? JSON.parse(item) : [];
+      if (!item) return [];
+      const parsed = JSON.parse(item);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter(e => e && (e.id || e.caseId));
     } catch {
       return [];
     }
@@ -100,14 +113,14 @@ export const InvestigationProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Merged cases: custom uploaded first, followed by default mock baseline
   const cases = useMemo(() => {
-    const defaultIds = new Set(customCases.map(c => c.id));
-    const filteredMock = mockInvestigations.filter(m => !defaultIds.has(m.id));
+    const customIds = new Set(customCases.map(c => c.id));
+    const filteredMock = mockInvestigations.filter(m => !customIds.has(m.id));
     return [...customCases, ...filteredMock];
   }, [customCases]);
 
   const emails = useMemo(() => {
-    const defaultIds = new Set(customEmails.map(e => e.caseId || e.id));
-    const filteredMock = mockEmails.filter(m => !defaultIds.has(m.caseId) && !defaultIds.has(m.id));
+    const customIds = new Set(customEmails.map(e => e.caseId || e.id));
+    const filteredMock = mockEmails.filter(m => !customIds.has(m.caseId) && !customIds.has(m.id));
     return [...customEmails, ...filteredMock];
   }, [customEmails]);
 
@@ -118,12 +131,16 @@ export const InvestigationProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, [customEvidence]);
 
-  const activeCase = useMemo(() => {
-    return cases.find(c => c.id === activeCaseId) || cases[0];
+  const activeCase: InvestigationCase = useMemo(() => {
+    const found = cases.find(c => c.id === activeCaseId);
+    if (found) return found;
+    return cases[0] || mockInvestigations[0];
   }, [cases, activeCaseId]);
 
-  const activeEmail = useMemo(() => {
-    return emails.find(e => e.caseId === activeCase?.id || e.id === activeCase?.emailId) || emails[0];
+  const activeEmail: EmailMetadata = useMemo(() => {
+    const found = emails.find(e => e.caseId === activeCase?.id || e.id === activeCase?.emailId);
+    if (found) return found;
+    return emails[0] || mockEmails[0];
   }, [emails, activeCase]);
 
   // Sync to localStorage
@@ -142,7 +159,6 @@ export const InvestigationProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       const backendSummaries = await fetchCases(1, 50);
       if (backendSummaries && backendSummaries.length > 0) {
-        // Fetch detailed record for each case that isn't already loaded
         for (const summary of backendSummaries) {
           const exists = cases.some(c => c.id === summary.case_id);
           if (!exists) {

@@ -1,6 +1,7 @@
 import React from 'react';
 import { InvestigationProvider, useInvestigation } from './context/InvestigationContext';
 import { Shell } from './components/layout/Shell';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 import { OverviewPage } from './pages/OverviewPage';
 import { MailboxPage } from './pages/MailboxPage';
@@ -55,14 +56,22 @@ const AppContent: React.FC = () => {
     }
   };
 
-  return <Shell>{renderActivePage()}</Shell>;
+  return (
+    <Shell>
+      <ErrorBoundary fallbackTitle="Tab View Recovered">
+        {renderActivePage()}
+      </ErrorBoundary>
+    </Shell>
+  );
 };
 
 export const App: React.FC = () => {
   return (
-    <InvestigationProvider>
-      <AppContent />
-    </InvestigationProvider>
+    <ErrorBoundary fallbackTitle="Application Recovered">
+      <InvestigationProvider>
+        <AppContent />
+      </InvestigationProvider>
+    </ErrorBoundary>
   );
 };
 

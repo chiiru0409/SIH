@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Bell, Shield, Clock, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { Search, ChevronDown, CheckCircle2, Clock } from 'lucide-react';
 import { useInvestigation } from '../../context/InvestigationContext';
 
 export const Header: React.FC = () => {
@@ -35,7 +35,7 @@ export const Header: React.FC = () => {
             className="flex items-center gap-2 px-3 py-1.5 rounded bg-slate-900 border border-slate-700/80 hover:border-cyan-500/50 text-xs font-mono text-slate-200 transition-colors"
           >
             <span className="text-slate-400">Case Study:</span>
-            <span className="font-bold text-cyan-400">{activeCaseId}</span>
+            <span className="font-bold text-cyan-400">{activeCaseId || 'CASE-2026-0842'}</span>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
           </button>
 
@@ -44,44 +44,50 @@ export const Header: React.FC = () => {
               <div className="px-3 py-1 text-[10px] font-mono text-slate-400 uppercase tracking-wider border-b border-slate-800">
                 Switch Investigation Target
               </div>
-              {cases.map(c => (
-                <button
-                  key={c.id}
-                  onClick={() => {
-                    setActiveCaseId(c.id);
-                    setCaseDropdownOpen(false);
-                    setActiveTab('investigation');
-                  }}
-                  className={`w-full text-left px-3 py-2 text-xs font-mono flex items-center justify-between hover:bg-slate-800/80 transition-colors ${
-                    c.id === activeCaseId ? 'bg-cyan-500/10 text-cyan-400' : 'text-slate-300'
-                  }`}
-                >
-                  <div>
-                    <div className="font-bold flex items-center gap-1.5">
-                      <span>{c.id}</span>
-                      <span
-                        className={`text-[9px] px-1 rounded ${
-                          c.verdict.severity === 'CRITICAL'
-                            ? 'bg-red-500/20 text-red-400'
-                            : c.verdict.severity === 'HIGH'
-                            ? 'bg-orange-500/20 text-orange-400'
-                            : c.verdict.severity === 'LOW' || c.verdict.primaryThreat === 'BENIGN'
-                            ? 'bg-emerald-500/20 text-emerald-400'
-                            : 'bg-yellow-500/20 text-yellow-400'
-                        }`}
-                      >
-                        {c.verdict.severity}
-                      </span>
+              {cases.map(c => {
+                const severity = c?.verdict?.severity || 'HIGH';
+                const isCrit = severity === 'CRITICAL';
+                const isBenign = severity === 'LOW' || severity === 'INFO' || c?.verdict?.primaryThreat === 'BENIGN';
+
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      setActiveCaseId(c.id);
+                      setCaseDropdownOpen(false);
+                      setActiveTab('investigation');
+                    }}
+                    className={`w-full text-left px-3 py-2 text-xs font-mono flex items-center justify-between hover:bg-slate-800/80 transition-colors ${
+                      c.id === activeCaseId ? 'bg-cyan-500/10 text-cyan-400' : 'text-slate-300'
+                    }`}
+                  >
+                    <div>
+                      <div className="font-bold flex items-center gap-1.5">
+                        <span>{c.id}</span>
+                        <span
+                          className={`text-[9px] px-1 rounded ${
+                            isCrit
+                              ? 'bg-red-500/20 text-red-400'
+                              : severity === 'HIGH'
+                              ? 'bg-orange-500/20 text-orange-400'
+                              : isBenign
+                              ? 'bg-emerald-500/20 text-emerald-400'
+                              : 'bg-yellow-500/20 text-yellow-400'
+                          }`}
+                        >
+                          {severity}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-400 truncate max-w-[220px]">
+                        {c.subject || 'Forensic Case Record'}
+                      </div>
                     </div>
-                    <div className="text-[11px] text-slate-400 truncate max-w-[220px]">
-                      {c.subject}
-                    </div>
-                  </div>
-                  {c.id === activeCaseId && (
-                    <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                  )}
-                </button>
-              ))}
+                    {c.id === activeCaseId && (
+                      <CheckCircle2 className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -99,32 +105,25 @@ export const Header: React.FC = () => {
         </div>
       </div>
 
-      {/* Right: SOC Status, UTC Clock, Analyst */}
-      <div className="flex items-center gap-5">
-        <div className="hidden lg:flex items-center gap-2 text-xs font-mono text-slate-400 bg-slate-900/60 px-3 py-1 rounded border border-slate-800">
+      {/* Right: SOC Status & UTC Clock */}
+      <div className="flex items-center gap-4 text-xs font-mono">
+        <div className="flex items-center gap-2 text-slate-400 border-r border-slate-800 pr-4">
           <Clock className="w-3.5 h-3.5 text-cyan-400" />
-          <span>{time || '2026-09-09 08:42:15 UTC'}</span>
+          <span>{time || 'Loading UTC...'}</span>
         </div>
 
-        <div className="flex items-center gap-2 px-2.5 py-1 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-medium">
-          <Shield className="w-3.5 h-3.5" />
+        <div className="flex items-center gap-2 bg-emerald-950/40 border border-emerald-500/30 px-2.5 py-1 rounded-full text-emerald-400 text-[11px] font-bold">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
           <span>SIH SOC ACTIVE</span>
         </div>
 
-        <div className="flex items-center gap-3 pl-3 border-l border-slate-800">
-          <button className="relative p-1.5 text-slate-400 hover:text-slate-200 rounded hover:bg-slate-800 transition-colors">
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-cyan-400" />
-          </button>
-
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-cyan-600/30 border border-cyan-400/50 flex items-center justify-center text-cyan-300 font-mono text-xs font-bold">
-              E
-            </div>
-            <div className="hidden sm:block text-left font-mono">
-              <div className="text-xs font-semibold text-slate-200">Team EAGLE</div>
-              <div className="text-[10px] text-slate-400">SIH26106 Lead</div>
-            </div>
+        <div className="flex items-center gap-2 pl-2">
+          <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[11px] font-bold text-cyan-400">
+            E
+          </div>
+          <div className="hidden lg:block text-left text-[11px]">
+            <div className="font-bold text-slate-200 leading-tight">Team EAGLE</div>
+            <div className="text-slate-500 text-[9px]">SIH26106 Lead</div>
           </div>
         </div>
       </div>
