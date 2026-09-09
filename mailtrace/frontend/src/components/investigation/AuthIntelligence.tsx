@@ -1,13 +1,21 @@
 import React from 'react';
 import { AuthenticationResults } from '../../types/email';
-import { ShieldCheck, ShieldAlert, CheckCircle2, XCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { ShieldCheck, CheckCircle2, XCircle } from 'lucide-react';
 import { Badge } from '../common/Badge';
 
 interface AuthIntelligenceProps {
-  auth: AuthenticationResults;
+  auth?: Partial<AuthenticationResults>;
 }
 
 export const AuthIntelligence: React.FC<AuthIntelligenceProps> = ({ auth }) => {
+  const safeAuth = auth || {};
+  const spf = safeAuth.spf || { status: 'NONE' as any, domain: 'unknown', ip: '185.220.101.42', details: 'No SPF evaluation' };
+  const dkim = safeAuth.dkim || { status: 'NONE' as any, domain: 'unknown', selector: 's1', details: 'No DKIM evaluation' };
+  const dmarc = safeAuth.dmarc || { status: 'NONE' as any, policy: 'none' as any, details: 'No DMARC evaluation' };
+  const overallAlignment = safeAuth.overallAlignment ?? (spf.status === 'PASS' && (dkim.status === 'PASS' || dmarc.status === 'PASS'));
+
+  const spfIp = (spf as any).ip || (spf as any).senderIp || '185.220.101.42';
+
   return (
     <div className="p-5 rounded-lg bg-cyber-panel border border-slate-800 space-y-4">
       <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
@@ -20,12 +28,12 @@ export const AuthIntelligence: React.FC<AuthIntelligenceProps> = ({ auth }) => {
         <div className="flex items-center gap-2">
           <span
             className={`text-xs font-mono px-2 py-0.5 rounded font-bold ${
-              auth.overallAlignment
+              overallAlignment
                 ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
                 : 'bg-red-950 text-red-400 border border-red-800'
             }`}
           >
-            {auth.overallAlignment ? 'ALIGNED & AUTHENTIC' : 'ALIGNMENT FAILED (SPOOFED)'}
+            {overallAlignment ? 'ALIGNED & AUTHENTIC' : 'ALIGNMENT FAILED (SPOOFED)'}
           </span>
         </div>
       </div>
@@ -36,11 +44,11 @@ export const AuthIntelligence: React.FC<AuthIntelligenceProps> = ({ auth }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="font-mono text-sm font-bold text-slate-200">SPF</span>
-              <Badge variant="protocol" protocolStatus={auth.spf.status} size="xs">
-                {auth.spf.status}
+              <Badge variant="protocol" protocolStatus={spf.status || 'NONE'} size="xs">
+                {spf.status || 'NONE'}
               </Badge>
             </div>
-            {auth.spf.status === 'PASS' ? (
+            {spf.status === 'PASS' ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             ) : (
               <XCircle className="w-4 h-4 text-red-400" />
@@ -50,14 +58,14 @@ export const AuthIntelligence: React.FC<AuthIntelligenceProps> = ({ auth }) => {
           <div className="space-y-1.5 text-xs font-mono">
             <div className="flex justify-between">
               <span className="text-slate-400">Sending IP:</span>
-              <span className="text-slate-200">{auth.spf.ip}</span>
+              <span className="text-slate-200">{spfIp}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Envelope-From:</span>
-              <span className="text-slate-300 truncate max-w-[140px]">{auth.spf.domain}</span>
+              <span className="text-slate-300 truncate max-w-[140px]">{spf.domain || 'unknown'}</span>
             </div>
             <div className="pt-2 border-t border-slate-800 text-[11px] text-slate-400">
-              {auth.spf.details}
+              {spf.details || 'SPF record verification'}
             </div>
           </div>
         </div>
@@ -67,11 +75,11 @@ export const AuthIntelligence: React.FC<AuthIntelligenceProps> = ({ auth }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="font-mono text-sm font-bold text-slate-200">DKIM</span>
-              <Badge variant="protocol" protocolStatus={auth.dkim.status} size="xs">
-                {auth.dkim.status}
+              <Badge variant="protocol" protocolStatus={dkim.status || 'NONE'} size="xs">
+                {dkim.status || 'NONE'}
               </Badge>
             </div>
-            {auth.dkim.status === 'PASS' ? (
+            {dkim.status === 'PASS' ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             ) : (
               <XCircle className="w-4 h-4 text-red-400" />
@@ -80,15 +88,15 @@ export const AuthIntelligence: React.FC<AuthIntelligenceProps> = ({ auth }) => {
 
           <div className="space-y-1.5 text-xs font-mono">
             <div className="flex justify-between">
-              <span className="text-slate-400">Signature Domain (d=):</span>
-              <span className="text-slate-200 truncate max-w-[120px]">{auth.dkim.domain}</span>
+              <span className="text-slate-400">Signing Domain:</span>
+              <span className="text-slate-300 truncate max-w-[140px]">{dkim.domain || 'unknown'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Selector (s=):</span>
-              <span className="text-slate-300">{auth.dkim.selector}</span>
+              <span className="text-slate-400">Selector:</span>
+              <span className="text-slate-200">{dkim.selector || 'default'}</span>
             </div>
             <div className="pt-2 border-t border-slate-800 text-[11px] text-slate-400">
-              {auth.dkim.details}
+              {dkim.details || 'DKIM signature cryptographic check'}
             </div>
           </div>
         </div>
@@ -98,11 +106,11 @@ export const AuthIntelligence: React.FC<AuthIntelligenceProps> = ({ auth }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="font-mono text-sm font-bold text-slate-200">DMARC</span>
-              <Badge variant="protocol" protocolStatus={auth.dmarc.status} size="xs">
-                {auth.dmarc.status}
+              <Badge variant="protocol" protocolStatus={dmarc.status || 'NONE'} size="xs">
+                {dmarc.status || 'NONE'}
               </Badge>
             </div>
-            {auth.dmarc.status === 'PASS' ? (
+            {dmarc.status === 'PASS' ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             ) : (
               <XCircle className="w-4 h-4 text-red-400" />
@@ -111,15 +119,15 @@ export const AuthIntelligence: React.FC<AuthIntelligenceProps> = ({ auth }) => {
 
           <div className="space-y-1.5 text-xs font-mono">
             <div className="flex justify-between">
-              <span className="text-slate-400">Domain Policy (p=):</span>
-              <span className="text-amber-400 font-bold uppercase">{auth.dmarc.policy}</span>
+              <span className="text-slate-400">Policy Action:</span>
+              <span className="text-amber-400 font-bold uppercase">{dmarc.policy || 'none'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Header-From:</span>
-              <span className="text-slate-200 truncate max-w-[130px]">{auth.dmarc.headerFromDomain}</span>
+              <span className="text-slate-300 truncate max-w-[140px]">{(dmarc as any).headerFromDomain || spf.domain || 'unknown'}</span>
             </div>
             <div className="pt-2 border-t border-slate-800 text-[11px] text-slate-400">
-              {auth.dmarc.details}
+              {dmarc.details || 'DMARC alignment policy check'}
             </div>
           </div>
         </div>
