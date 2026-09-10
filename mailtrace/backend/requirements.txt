@@ -41,5 +41,8 @@ weasyprint==62.3
 # Hashing / evidence integrity (Phase 9)
 # hashlib is stdlib; no extra package needed
 
-# Development utilities
+# Development & Test utilities
 python-dotenv==1.0.1
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+anyio>=4.0.0
