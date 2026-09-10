@@ -20,41 +20,16 @@ import {
 import { useInvestigation, ActiveTab } from '../../context/InvestigationContext';
 
 export const Sidebar: React.FC = () => {
-  const { activeTab, setActiveTab, activeCaseId } = useInvestigation();
+  const { activeTab, setActiveTab, activeCaseId, cases, campaigns } = useInvestigation();
 
-  const sections: {
-    title: string;
-    items: { id: ActiveTab; label: string; icon: React.ComponentType<{ className?: string }>; badge?: string }[];
-  }[] = [
-    {
-      title: 'Operations',
-      items: [
-        { id: 'overview', label: 'SOC Overview', icon: LayoutDashboard },
-        { id: 'mailbox', label: 'Security Mailbox', icon: Inbox, badge: '6' },
-        { id: 'upload', label: 'EML Ingestion & Scan', icon: UploadCloud, badge: 'NEW' }
-      ]
-    },
-    {
-      title: 'Forensics & Threat Intel',
-      items: [
-        { id: 'investigation', label: 'Investigation Workspace', icon: Crosshair, badge: activeCaseId ? 'ACTIVE' : undefined },
-        { id: 'graph', label: 'Correlation Graph', icon: Network },
-        { id: 'hunting', label: 'Threat Hunting (MITRE)', icon: Compass },
-        { id: 'campaigns', label: 'Campaign Intelligence', icon: Flame, badge: '3' },
-        { id: 'intelligence', label: 'Threat Intel (IOCs)', icon: Database }
-      ]
-    },
-    {
-      title: 'Response & Compliance',
-      items: [
-        { id: 'response', label: 'Quarantine Vault', icon: ShieldCheck },
-        { id: 'policy', label: 'Policy Hub & Banners', icon: Sliders },
-        { id: 'tenant', label: 'Multi-Tenant Monitor', icon: Building2 },
-        { id: 'evidence', label: 'Evidence Chain (Merkle)', icon: Fingerprint },
-        { id: 'compliance', label: 'Compliance & NIS2 Audit', icon: Award, badge: '95%' },
-        { id: 'reports', label: 'Forensic DFIR Report', icon: FileText }
-      ]
-    }
+  const primaryNavItems: { id: ActiveTab; label: string; icon: React.ComponentType<{ className?: string }>; badge?: string }[] = [
+    { id: 'overview', label: 'SOC Overview', icon: LayoutDashboard },
+    { id: 'mailbox', label: 'Security Mailbox', icon: Inbox, badge: `${cases.length}` },
+    { id: 'investigation', label: 'Investigations', icon: Crosshair, badge: activeCaseId ? 'ACTIVE' : undefined },
+    { id: 'campaigns', label: 'Threat Campaigns', icon: Flame, badge: `${campaigns.length}` },
+    { id: 'intelligence', label: 'Threat Intelligence', icon: Database },
+    { id: 'evidence', label: 'Evidence & Integrity', icon: Fingerprint },
+    { id: 'reports', label: 'Forensic Reports', icon: FileText }
   ];
 
   return (
@@ -72,7 +47,7 @@ export const Sidebar: React.FC = () => {
                 MAILTRACE
               </h1>
               <span className="text-[10px] px-1 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-mono border border-cyan-500/30 font-semibold">
-                DFIR
+                SOC
               </span>
             </div>
             <p className="text-[10px] font-mono text-slate-400 flex items-center gap-1">
@@ -83,50 +58,57 @@ export const Sidebar: React.FC = () => {
         </div>
       </div>
 
+      {/* Quick Ingest Button */}
+      <div className="px-3 pt-3">
+        <button
+          onClick={() => setActiveTab('mailbox')}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 border border-cyan-500/40 text-cyan-300 text-xs font-mono font-bold transition-all shadow-sm group"
+        >
+          <UploadCloud className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform" />
+          <span>+ Ingest Suspicious .EML</span>
+        </button>
+      </div>
+
       {/* Navigation List */}
-      <nav className="flex-1 px-3 py-3 space-y-4 overflow-y-auto cyber-scrollbar">
-        {sections.map((sec, secIdx) => (
-          <div key={secIdx} className="space-y-1">
-            <div className="px-3 pb-1 text-[10px] font-mono font-semibold tracking-wider text-slate-400 uppercase">
-              {sec.title}
-            </div>
-            {sec.items.map(item => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-mono font-medium transition-all group ${
+      <nav className="flex-1 px-3 py-3 space-y-1.5 overflow-y-auto cyber-scrollbar">
+        <div className="px-3 pb-1 text-[10px] font-mono font-semibold tracking-wider text-slate-500 uppercase">
+          Threat Operations
+        </div>
+        {primaryNavItems.map(item => {
+          const Icon = item.icon;
+          const isActive = activeTab === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-mono font-medium transition-all group ${
+                isActive
+                  ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/40 shadow-glow-accent'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Icon
+                  className={`w-4 h-4 transition-colors ${
+                    isActive ? 'text-cyan-400' : 'text-slate-400 group-hover:text-slate-200'
+                  }`}
+                />
+                <span className="truncate max-w-[130px] text-left">{item.label}</span>
+              </div>
+              {item.badge && (
+                <span
+                  className={`px-1.5 py-0.2 text-[9px] font-mono rounded ${
                     isActive
-                      ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/40 shadow-glow-accent'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                      ? 'bg-cyan-400 text-slate-950 font-bold'
+                      : 'bg-slate-800 text-slate-400 group-hover:text-slate-300'
                   }`}
                 >
-                  <div className="flex items-center gap-2.5">
-                    <Icon
-                      className={`w-4 h-4 transition-colors ${
-                        isActive ? 'text-cyan-400' : 'text-slate-400 group-hover:text-slate-200'
-                      }`}
-                    />
-                    <span className="truncate max-w-[130px] text-left">{item.label}</span>
-                  </div>
-                  {item.badge && (
-                    <span
-                      className={`px-1.5 py-0.2 text-[9px] font-mono rounded ${
-                        isActive
-                          ? 'bg-cyan-400 text-slate-950 font-bold'
-                          : 'bg-slate-800 text-slate-400 group-hover:text-slate-300'
-                      }`}
-                    >
-                      {item.badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        ))}
+                  {item.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </nav>
 
       {/* Active Case Footer & Engine Status */}

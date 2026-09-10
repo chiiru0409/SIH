@@ -100,10 +100,10 @@ export function getSeverityBadgeStyles(severity?: string | null): {
       };
     case 'LOW':
       return {
-        bg: 'bg-cyan-950/50',
-        text: 'text-cyan-400',
-        border: 'border-cyan-500/40',
-        glow: 'shadow-[0_0_12px_rgba(6,182,212,0.25)]',
+        bg: 'bg-emerald-950/50',
+        text: 'text-emerald-400',
+        border: 'border-emerald-500/40',
+        glow: 'shadow-[0_0_12px_rgba(16,185,129,0.25)]',
       };
     case 'INFO':
     default:

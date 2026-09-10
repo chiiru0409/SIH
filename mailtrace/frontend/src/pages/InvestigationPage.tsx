@@ -4,21 +4,27 @@ import { CaseHeader } from '../components/investigation/CaseHeader';
 import { VerdictSummary } from '../components/investigation/VerdictSummary';
 import { WhySuspicious } from '../components/investigation/WhySuspicious';
 import { RiskBreakdown } from '../components/investigation/RiskBreakdown';
+import { EmailBodyPreview } from '../components/investigation/EmailBodyPreview';
 import { AuthIntelligence } from '../components/investigation/AuthIntelligence';
+import { IdentityAnalysis } from '../components/investigation/IdentityAnalysis';
 import { HeaderForensics } from '../components/investigation/HeaderForensics';
 import { UrlIntelligence } from '../components/investigation/UrlIntelligence';
 import { InfrastructureGeo } from '../components/investigation/InfrastructureGeo';
 import { BehavioralContext } from '../components/investigation/BehavioralContext';
-import { ShieldCheck, Route, Link2, Globe, Users } from 'lucide-react';
+import { CampaignCorrelationSection } from '../components/investigation/CampaignCorrelationSection';
+import { InvestigationGraph } from '../components/graph/InvestigationGraph';
+import { ResponsePlaybook } from '../components/investigation/ResponsePlaybook';
+import { InvestigationEvidenceSnippet } from '../components/investigation/InvestigationEvidenceSnippet';
+import { ShieldAlert, Route, Crosshair, Layers } from 'lucide-react';
 
 export const InvestigationPage: React.FC = () => {
   const { activeCase, activeEmail, setActiveTab } = useInvestigation();
-  const [activeForensicTab, setActiveForensicTab] = useState<'auth' | 'relay' | 'urls' | 'geo' | 'behavior'>('auth');
+  const [activeStage, setActiveStage] = useState<'DETECT' | 'TRACE' | 'INVESTIGATE' | 'ALL'>('ALL');
 
   if (!activeCase || !activeEmail) {
     return (
       <div className="p-8 text-center text-slate-400 font-mono">
-        No case currently selected.
+        No case currently selected for forensic investigation.
       </div>
     );
   }
@@ -71,14 +77,6 @@ export const InvestigationPage: React.FC = () => {
     topContributors: ['Authentication Alignment', 'External Links']
   };
 
-  const forensicTabs = [
-    { id: 'auth', label: 'Auth & Alignment', icon: ShieldCheck },
-    { id: 'relay', label: 'SMTP Relay Trace', icon: Route },
-    { id: 'urls', label: `URL Intel (${extractedUrlsList.length})`, icon: Link2 },
-    { id: 'geo', label: 'Infrastructure & GeoIP', icon: Globe },
-    { id: 'behavior', label: 'Behavior Baseline', icon: Users }
-  ];
-
   return (
     <div className="space-y-6">
       {/* 1. Case Header with Quick Actions */}
@@ -88,60 +86,110 @@ export const InvestigationPage: React.FC = () => {
         onOpenEvidence={() => setActiveTab('evidence')}
       />
 
-      {/* 2. Primary Verdict Banner */}
-      <VerdictSummary verdict={activeCase.verdict} />
+      {/* 2. Core Triad Navigation Tabs (DETECT -> TRACE -> INVESTIGATE) */}
+      <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setActiveStage('DETECT')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md font-mono text-xs font-bold transition-all ${
+              activeStage === 'DETECT'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-glow-accent'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 bg-slate-900/80 border border-slate-800'
+            }`}
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-cyan-400" />
+            <span>🔵 1. DETECT (AI Threat & Intent)</span>
+          </button>
 
-      {/* 3. Explainable Findings & Mathematical Risk Breakdown Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-7">
-          <WhySuspicious findings={findingsList} />
+          <button
+            onClick={() => setActiveStage('TRACE')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md font-mono text-xs font-bold transition-all ${
+              activeStage === 'TRACE'
+                ? 'bg-orange-500/20 text-orange-300 border border-orange-500/50 shadow-glow-high'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 bg-slate-900/80 border border-slate-800'
+            }`}
+          >
+            <Route className="w-3.5 h-3.5 text-orange-400" />
+            <span>🟠 2. TRACE (Routing & GeoIP)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveStage('INVESTIGATE')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md font-mono text-xs font-bold transition-all ${
+              activeStage === 'INVESTIGATE'
+                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/50 shadow-glow-critical'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 bg-slate-900/80 border border-slate-800'
+            }`}
+          >
+            <Crosshair className="w-3.5 h-3.5 text-purple-400" />
+            <span>🟣 3. INVESTIGATE (Graph & Evidence)</span>
+          </button>
         </div>
-        <div className="lg:col-span-5">
-          <RiskBreakdown breakdown={riskBreakdownData} />
-        </div>
+
+        <button
+          onClick={() => setActiveStage('ALL')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-mono text-xs transition-colors ${
+            activeStage === 'ALL'
+              ? 'bg-slate-800 text-slate-100 font-bold border border-slate-700'
+              : 'text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5" />
+          <span>Complete Dossier (All Stages)</span>
+        </button>
       </div>
 
-      {/* 4. Forensic Deep-Dive Tabs Section */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2 border-b border-slate-800 pb-2 overflow-x-auto cyber-scrollbar">
-          {forensicTabs.map(tab => {
-            const Icon = tab.icon;
-            const isActive = activeForensicTab === tab.id;
+      {/* ========================================================= */}
+      {/* 🔵 STAGE 1: DETECT (Threat Intent & Risk Findings)        */}
+      {/* ========================================================= */}
+      {(activeStage === 'DETECT' || activeStage === 'ALL') && (
+        <section className="space-y-6">
+          <div className="flex items-center gap-2 text-xs font-mono font-bold text-cyan-400 uppercase tracking-wider">
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+            <span>Stage 01: AI Threat Detection & Mathematical Risk Scoring</span>
+          </div>
 
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveForensicTab(tab.id as any)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-md font-mono text-xs font-medium whitespace-nowrap transition-all ${
-                  isActive
-                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-accent'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+          <VerdictSummary verdict={activeCase.verdict} />
 
-        {/* Tab Content Display */}
-        {activeForensicTab === 'auth' && (
-          <AuthIntelligence auth={authResults} />
-        )}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-7">
+              <WhySuspicious findings={findingsList} />
+            </div>
+            <div className="lg:col-span-5">
+              <RiskBreakdown breakdown={riskBreakdownData} />
+            </div>
+          </div>
 
-        {activeForensicTab === 'relay' && (
+          <EmailBodyPreview email={activeEmail} />
+        </section>
+      )}
+
+      {/* ========================================================= */}
+      {/* 🟠 STAGE 2: TRACE (Infrastructure & Routing Forensics)    */}
+      {/* ========================================================= */}
+      {(activeStage === 'TRACE' || activeStage === 'ALL') && (
+        <section className="space-y-6">
+          <div className="flex items-center gap-2 text-xs font-mono font-bold text-orange-400 uppercase tracking-wider pt-4 border-t border-slate-800/80">
+            <span className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
+            <span>Stage 02: Reverse-Hop SMTP Routing, Authentication & Infrastructure Geolocation</span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-6">
+              <AuthIntelligence auth={authResults} />
+            </div>
+            <div className="lg:col-span-6">
+              <IdentityAnalysis email={activeEmail} investigationCase={activeCase} />
+            </div>
+          </div>
+
           <HeaderForensics
             relayHops={relayHopsList}
             originatingIp={activeEmail.headers?.originatingIp || infraData.originatingIp || '185.220.101.42'}
           />
-        )}
 
-        {activeForensicTab === 'urls' && (
           <UrlIntelligence urls={extractedUrlsList} />
-        )}
 
-        {activeForensicTab === 'geo' && (
           <InfrastructureGeo
             ip={infraData.originatingIp || activeEmail.headers?.originatingIp || '185.220.101.42'}
             asn={infraData.originatingAsn}
@@ -152,12 +200,36 @@ export const InvestigationPage: React.FC = () => {
             longitude={infraData.originatingLongitude}
             isProxyOrTor={infraData.isProxyOrTor}
           />
-        )}
+        </section>
+      )}
 
-        {activeForensicTab === 'behavior' && (
+      {/* ========================================================= */}
+      {/* 🟣 STAGE 3: INVESTIGATE (Correlation, Response & Evidence) */}
+      {/* ========================================================= */}
+      {(activeStage === 'INVESTIGATE' || activeStage === 'ALL') && (
+        <section className="space-y-6">
+          <div className="flex items-center gap-2 text-xs font-mono font-bold text-purple-400 uppercase tracking-wider pt-4 border-t border-slate-800/80">
+            <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+            <span>Stage 03: Multi-Case Correlation Graph, Behavioral Baseline, Mitigation & Evidence Proof</span>
+          </div>
+
           <BehavioralContext context={behavioralData} />
-        )}
-      </div>
+
+          <CampaignCorrelationSection investigationCase={activeCase} />
+
+          {/* Embedded Interactive Correlation Subgraph */}
+          <div className="space-y-2">
+            <div className="text-xs font-mono font-bold text-slate-300">
+              Interactive Infrastructure Correlation Subgraph
+            </div>
+            <InvestigationGraph />
+          </div>
+
+          <ResponsePlaybook investigationCase={activeCase} />
+
+          <InvestigationEvidenceSnippet investigationCase={activeCase} />
+        </section>
+      )}
     </div>
   );
 };

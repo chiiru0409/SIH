@@ -31,7 +31,7 @@ export const ForensicReportView: React.FC = () => {
             <span>SIH26106 DFIR Forensic Incident Report</span>
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Formal courtroom-grade cryptographic incident report ready for judge evaluation
+            Formal forensic-ready tamper-evident cryptographic incident report ready for investigation review
           </p>
         </div>
 
