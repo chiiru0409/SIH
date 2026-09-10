@@ -119,6 +119,20 @@ else:
 
 
 # ------------------------------------------------------------------ #
+#  Security Headers Middleware                                        #
+# ------------------------------------------------------------------ #
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    """Attach defensive security headers to all responses."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
+    return response
+
+
+# ------------------------------------------------------------------ #
 #  Routers                                                            #
 # ------------------------------------------------------------------ #
 app.include_router(health.router)
