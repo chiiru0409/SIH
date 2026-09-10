@@ -29,7 +29,8 @@ export type ActiveTab =
   | 'tenant'
   | 'evidence' 
   | 'compliance'
-  | 'reports';
+  | 'reports'
+  | 'landing';
 
 interface InvestigationContextType {
   activeTab: ActiveTab;

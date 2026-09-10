@@ -112,6 +112,13 @@ export const Header: React.FC = () => {
           <span>{time || 'Loading UTC...'}</span>
         </div>
 
+        <button
+          onClick={() => setActiveTab('landing')}
+          className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-red-500/20 to-orange-500/20 hover:from-red-500/30 hover:to-orange-500/30 border border-red-500/40 text-red-300 hover:text-red-200 rounded-md text-[11px] font-bold transition-all shadow-sm"
+        >
+          <span>⛩️ Kage 3D Landing</span>
+        </button>
+
         <div className="flex items-center gap-2 bg-emerald-950/40 border border-emerald-500/30 px-2.5 py-1 rounded-full text-emerald-400 text-[11px] font-bold">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
           <span>SIH SOC ACTIVE</span>

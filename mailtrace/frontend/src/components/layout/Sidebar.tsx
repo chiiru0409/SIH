@@ -29,7 +29,8 @@ export const Sidebar: React.FC = () => {
     { id: 'campaigns', label: 'Threat Campaigns', icon: Flame, badge: `${campaigns.length}` },
     { id: 'intelligence', label: 'Threat Intelligence', icon: Database },
     { id: 'evidence', label: 'Evidence & Integrity', icon: Fingerprint },
-    { id: 'reports', label: 'Forensic Reports', icon: FileText }
+    { id: 'reports', label: 'Forensic Reports', icon: FileText },
+    { id: 'landing', label: 'Kage 3D Landing', icon: Sparkles, badge: 'THREE.JS' }
   ];
 
   return (
