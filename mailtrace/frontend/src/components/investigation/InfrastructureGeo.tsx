@@ -57,7 +57,7 @@ export const InfrastructureGeo: React.FC<InfrastructureGeoProps> = ({
               <span className="font-bold text-cyan-400">{ip}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-slate-400">Physical Location:</span>
+              <span className="text-slate-400">Observed Infrastructure Location:</span>
               <span className="text-slate-200 font-semibold">{city}, {country}</span>
             </div>
             <div className="flex justify-between items-center">
@@ -75,9 +75,9 @@ export const InfrastructureGeo: React.FC<InfrastructureGeoProps> = ({
           </div>
 
           <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-[11px] font-mono text-slate-400 space-y-1">
-            <div className="text-cyan-400 font-bold uppercase">Threat Feeds Corroboration</div>
-            <div>• Listed on AbuseIPDB with 94% confidence score</div>
-            <div>• Historical malicious relay activity observed in 3 other campaigns</div>
+            <div className="text-cyan-400 font-bold uppercase">Passive Intelligence Corroboration</div>
+            <div>• Observed routing IP in threat telemetry feeds (AbuseIPDB score: 94%)</div>
+            <div>• Technical relay infrastructure correlated across multiple incidents</div>
           </div>
         </div>
 
@@ -126,10 +126,14 @@ export const InfrastructureGeo: React.FC<InfrastructureGeoProps> = ({
           </div>
 
           <div className="mt-2 flex items-center justify-between text-[10px] font-mono text-slate-400">
-            <span>Target Node: Primary Perimeter Gateway</span>
+            <span>Target Node: Ingress Perimeter Gateway</span>
             <span className="text-emerald-400">Trace Complete (Latency: 42ms)</span>
           </div>
         </div>
+      </div>
+
+      <div className="p-3 rounded bg-slate-950/80 border border-slate-800 text-[11px] font-mono text-slate-400">
+        <strong className="text-slate-300">Forensic Disclaimer:</strong> Observed sending infrastructure geolocates to approximate routing facilities (data centers, relays, ISPs). It indicates technical infrastructure ownership, not the verified physical location or legal identity of the human sender.
       </div>
     </div>
   );
