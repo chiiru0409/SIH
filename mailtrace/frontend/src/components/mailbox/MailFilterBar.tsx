@@ -1,8 +1,10 @@
 import React from 'react';
-import { Filter, AlertOctagon, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { Filter, Search, ShieldAlert } from 'lucide-react';
 import { ThreatSeverity } from '../../types/email';
 
 interface MailFilterBarProps {
+  searchQuery: string;
+  onSearchChange: (q: string) => void;
   selectedSeverity: string;
   onSelectSeverity: (sev: string) => void;
   selectedCategory: string;
@@ -11,6 +13,8 @@ interface MailFilterBarProps {
 }
 
 export const MailFilterBar: React.FC<MailFilterBarProps> = ({
+  searchQuery,
+  onSearchChange,
   selectedSeverity,
   onSelectSeverity,
   selectedCategory,
@@ -35,18 +39,50 @@ export const MailFilterBar: React.FC<MailFilterBarProps> = ({
   ];
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-cyber-panel border border-slate-800 rounded-lg">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="space-y-2 p-3 bg-cyber-panel border border-slate-800 rounded-lg">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Search Bar */}
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Case & Indicator Search (Case ID, sender, domain, IP, URL, subject)..."
+            value={searchQuery}
+            onChange={e => onSearchChange(e.target.value)}
+            className="w-full pl-8 pr-3 py-1.5 text-xs font-mono bg-slate-900 border border-slate-700 rounded focus:border-cyan-500 text-slate-200 outline-none placeholder:text-slate-500"
+          />
+        </div>
+
+        <div className="flex items-center gap-3 self-end sm:self-auto">
+          <select
+            value={selectedCategory}
+            onChange={e => onSelectCategory(e.target.value)}
+            className="bg-slate-900 border border-slate-700 text-xs font-mono text-slate-300 px-2.5 py-1.5 rounded outline-none focus:border-cyan-500"
+          >
+            {categories.map(cat => (
+              <option key={cat.id} value={cat.id}>
+                {cat.label}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs font-mono text-slate-400 whitespace-nowrap">
+            Showing <span className="text-cyan-400 font-bold">{totalCount}</span> cases
+          </span>
+        </div>
+      </div>
+
+      {/* Severity Filter Buttons */}
+      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/60">
         <div className="flex items-center gap-1.5 text-xs font-mono text-slate-400 mr-2">
-          <Filter className="w-3.5 h-3.5 text-cyan-400" />
-          <span>Filter:</span>
+          <Filter className="w-3 h-3 text-cyan-400" />
+          <span>Severity:</span>
         </div>
 
         {severities.map(sev => (
           <button
             key={sev.id}
             onClick={() => onSelectSeverity(sev.id)}
-            className={`px-2.5 py-1 text-xs font-mono rounded transition-colors ${
+            className={`px-2.5 py-0.5 text-xs font-mono rounded transition-colors ${
               selectedSeverity === sev.id
                 ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
                 : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
@@ -55,23 +91,6 @@ export const MailFilterBar: React.FC<MailFilterBarProps> = ({
             {sev.label}
           </button>
         ))}
-      </div>
-
-      <div className="flex items-center gap-3">
-        <select
-          value={selectedCategory}
-          onChange={e => onSelectCategory(e.target.value)}
-          className="bg-slate-900 border border-slate-700 text-xs font-mono text-slate-300 px-2.5 py-1 rounded outline-none focus:border-cyan-500"
-        >
-          {categories.map(cat => (
-            <option key={cat.id} value={cat.id}>
-              {cat.label}
-            </option>
-          ))}
-        </select>
-        <span className="text-xs font-mono text-slate-400">
-          Showing <span className="text-cyan-400 font-bold">{totalCount}</span> cases
-        </span>
       </div>
     </div>
   );

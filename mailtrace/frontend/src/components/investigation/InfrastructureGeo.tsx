@@ -75,9 +75,9 @@ export const InfrastructureGeo: React.FC<InfrastructureGeoProps> = ({
           </div>
 
           <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-[11px] font-mono text-slate-400 space-y-1">
-            <div className="text-cyan-400 font-bold uppercase">Passive Intelligence Corroboration</div>
-            <div>• Observed routing IP in threat telemetry feeds (AbuseIPDB score: 94%)</div>
-            <div>• Technical relay infrastructure correlated across multiple incidents</div>
+            <div className="text-cyan-400 font-bold uppercase">Observed Infrastructure Intelligence</div>
+            <div>• Originating relay reputation: High Risk (Heuristic Scoring • API-Ready)</div>
+            <div>• Observed relay infrastructure correlated across multiple incidents</div>
           </div>
         </div>
 

@@ -46,7 +46,7 @@ export const IocDatabase: React.FC = () => {
             <span>Threat Intelligence Indicators of Compromise (IOC)</span>
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Real-time reputation feeds, multi-engine consensus, and ASN/WHOIS intelligence
+            Indicators of Compromise, heuristic reputation scoring, and ASN/WHOIS network intelligence (API-Ready / Heuristic Fallback)
           </p>
         </div>
 

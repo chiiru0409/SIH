@@ -31,7 +31,7 @@ export const ForensicReportView: React.FC = () => {
             <span>SIH26106 DFIR Forensic Incident Report</span>
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Formal forensic-ready tamper-evident cryptographic incident report ready for investigation review
+            Print-optimized tamper-evident forensic incident report ready for investigation review
           </p>
         </div>
 
@@ -40,7 +40,7 @@ export const ForensicReportView: React.FC = () => {
           className="flex items-center gap-2 px-4 py-2 rounded bg-cyan-500 text-slate-950 font-mono text-xs font-bold hover:bg-cyan-400 transition-colors shadow-glow-accent"
         >
           <Printer className="w-4 h-4" />
-          <span>Print / Export PDF</span>
+          <span>Print / Save Forensic Report</span>
         </button>
       </div>
 

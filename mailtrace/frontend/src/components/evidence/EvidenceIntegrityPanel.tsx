@@ -504,12 +504,12 @@ export const EvidenceIntegrityPanel: React.FC<EvidenceIntegrityPanelProps> = ({
           {/* TAB 3: BLOCKCHAIN PROOF */}
           <div className={activeTab === 'BLOCKCHAIN' ? 'block space-y-3' : 'hidden'}>
             <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-2 gap-1">
                 <span className="text-xs font-bold text-purple-300 flex items-center space-x-1.5">
                   <Blocks className="h-4 w-4 text-purple-400" />
-                  <span>Zero-Knowledge Distributed Ledger Timestamping</span>
+                  <span>Distributed Ledger Stamping (Simulated / Web3 Ready)</span>
                 </span>
-                <span className="text-[10px] text-slate-500">NO PII ON-CHAIN</span>
+                <span className="text-[10px] text-slate-500">EXTERNAL ANCHORING AVAILABLE WHEN CONFIGURED</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">

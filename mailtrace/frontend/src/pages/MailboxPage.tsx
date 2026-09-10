@@ -9,6 +9,7 @@ import { Inbox, UploadCloud, ChevronDown, ChevronUp, ShieldAlert } from 'lucide-
 
 export const MailboxPage: React.FC = () => {
   const { emails, cases, selectAndInvestigate, ingestUploadedCase, setActiveTab } = useInvestigation();
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedSeverity, setSelectedSeverity] = useState<string>('ALL');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [previewEmail, setPreviewEmail] = useState<EmailMetadata | null>(null);
@@ -20,7 +21,30 @@ export const MailboxPage: React.FC = () => {
       selectedSeverity === 'ALL' || matchedCase?.verdict.severity === selectedSeverity;
     const matchesCat =
       selectedCategory === 'ALL' || email.threatCategory === selectedCategory;
-    return matchesSev && matchesCat;
+
+    // Multi-attribute indicator search
+    const query = searchQuery.trim().toLowerCase();
+    const sender = (email as any).sender || (email as any).from || '';
+    const senderDomain = (email as any).senderDomain || (email as any).fromDomain || '';
+    const recipient = (email as any).recipient || (email as any).to || '';
+    const origIp = (matchedCase as any)?.forensicSummary?.originatingIp || (email as any).headers?.originatingIp || '';
+    const urls = (email as any).extractedUrls || (email as any).urls || [];
+
+    const matchesSearch =
+      query === '' ||
+      email.id.toLowerCase().includes(query) ||
+      (email.caseId && email.caseId.toLowerCase().includes(query)) ||
+      (email.subject && email.subject.toLowerCase().includes(query)) ||
+      sender.toLowerCase().includes(query) ||
+      senderDomain.toLowerCase().includes(query) ||
+      recipient.toLowerCase().includes(query) ||
+      origIp.toLowerCase().includes(query) ||
+      urls.some((u: any) =>
+        (u.originalUrl || u.defangedUrl || u.url || '').toLowerCase().includes(query) ||
+        (u.domain || '').toLowerCase().includes(query)
+      );
+
+    return matchesSev && matchesCat && matchesSearch;
   });
 
   const matchedCaseForPreview = previewEmail
@@ -84,6 +108,8 @@ export const MailboxPage: React.FC = () => {
 
       {/* Filter Bar */}
       <MailFilterBar
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
         selectedSeverity={selectedSeverity}
         onSelectSeverity={setSelectedSeverity}
         selectedCategory={selectedCategory}
