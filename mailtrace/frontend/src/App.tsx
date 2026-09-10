@@ -17,24 +17,16 @@ import { TenantPage } from './pages/TenantPage';
 import { EvidencePage } from './pages/EvidencePage';
 import { CompliancePage } from './pages/CompliancePage';
 import { ReportsPage } from './pages/ReportsPage';
-import { Scene } from './components/landing/KageScene';
+import { MailTraceImmersiveExperience } from './components/immersive/MailTraceImmersiveExperience';
 
 const AppContent: React.FC = () => {
-  const { activeTab, setActiveTab } = useInvestigation();
+  const { activeTab } = useInvestigation();
 
-  if (activeTab === 'landing') {
+  if (activeTab === 'landing' || activeTab === 'experience') {
     return (
-      <div className="relative w-screen h-screen overflow-hidden bg-black">
-        <button
-          onClick={() => setActiveTab('overview')}
-          className="fixed top-4 right-4 z-50 px-4 py-2 bg-slate-900/90 hover:bg-slate-800 text-cyan-400 font-mono text-xs rounded-lg border border-cyan-500/40 shadow-lg backdrop-blur-md flex items-center gap-2 transition-all hover:scale-105"
-        >
-          <span>← Back to SOC Portal</span>
-        </button>
-        <ErrorBoundary fallbackTitle="Landing Experience Recovered">
-          <Scene />
-        </ErrorBoundary>
-      </div>
+      <ErrorBoundary fallbackTitle="Immersive Experience Recovered">
+        <MailTraceImmersiveExperience />
+      </ErrorBoundary>
     );
   }
 

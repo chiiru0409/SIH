@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ChevronDown, CheckCircle2, Clock } from 'lucide-react';
+import { Search, ChevronDown, CheckCircle2, Clock, Sparkles } from 'lucide-react';
 import { useInvestigation } from '../../context/InvestigationContext';
 
 export const Header: React.FC = () => {
@@ -113,10 +113,11 @@ export const Header: React.FC = () => {
         </div>
 
         <button
-          onClick={() => setActiveTab('landing')}
-          className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-red-500/20 to-orange-500/20 hover:from-red-500/30 hover:to-orange-500/30 border border-red-500/40 text-red-300 hover:text-red-200 rounded-md text-[11px] font-bold transition-all shadow-sm"
+          onClick={() => setActiveTab('experience')}
+          className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 border border-cyan-500/40 text-cyan-300 hover:text-cyan-100 rounded-md text-[11px] font-bold transition-all shadow-glow-accent"
         >
-          <span>⛩️ Kage 3D Landing</span>
+          <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+          <span>Explore Forensic Trace</span>
         </button>
 
         <div className="flex items-center gap-2 bg-emerald-950/40 border border-emerald-500/30 px-2.5 py-1 rounded-full text-emerald-400 text-[11px] font-bold">

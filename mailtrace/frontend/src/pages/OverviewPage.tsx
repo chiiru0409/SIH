@@ -4,7 +4,7 @@ import { ThreatTimeline } from '../components/overview/ThreatTimeline';
 import { ThreatDistribution } from '../components/overview/ThreatDistribution';
 import { RecentIncidents } from '../components/overview/RecentIncidents';
 import { ActiveCampaignsCard } from '../components/overview/ActiveCampaignsCard';
-import { ShieldCheck, Activity, ArrowRight, ShieldAlert, Flame, Search, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Activity, ArrowRight, ShieldAlert, Flame, Search, CheckCircle2, Sparkles } from 'lucide-react';
 import { useInvestigation } from '../context/InvestigationContext';
 
 export const OverviewPage: React.FC = () => {
@@ -59,18 +59,25 @@ export const OverviewPage: React.FC = () => {
         </div>
 
         {/* Primary Action CTA */}
-        <div className="flex flex-col sm:flex-row lg:flex-col gap-3 shrink-0">
+        <div className="flex flex-col sm:flex-row lg:flex-col gap-2.5 shrink-0">
           <button
-            onClick={handleStartInvestigation}
-            className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-mono text-xs font-bold transition-all shadow-glow-accent group"
+            onClick={() => setActiveTab('experience')}
+            className="flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-mono text-xs font-bold transition-all shadow-glow-accent group"
           >
-            <ShieldAlert className="w-4 h-4 text-slate-950" />
-            <span>INVESTIGATE THREATS</span>
+            <Sparkles className="w-4 h-4 text-slate-950" />
+            <span>EXPLORE FORENSIC TRACE</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </button>
           <button
+            onClick={handleStartInvestigation}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-cyan-500/40 text-cyan-300 font-mono text-xs font-semibold transition-colors"
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Investigate Active Case</span>
+          </button>
+          <button
             onClick={() => setActiveTab('mailbox')}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-mono text-xs font-semibold transition-colors"
+            className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 font-mono text-xs font-medium transition-colors"
           >
             <span>View Security Mailbox</span>
           </button>
