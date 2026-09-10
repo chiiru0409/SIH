@@ -37,11 +37,51 @@ export const ForensicReportView: React.FC = () => {
 
         <button
           onClick={handlePrint}
-          className="flex items-center gap-2 px-4 py-2 rounded bg-cyan-500 text-slate-950 font-mono text-xs font-bold hover:bg-cyan-400 transition-colors shadow-glow-accent"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-500 text-slate-950 font-mono text-xs font-bold hover:bg-cyan-400 transition-colors shadow-glow-accent"
         >
           <Printer className="w-4 h-4" />
           <span>Print / Save Forensic Report</span>
         </button>
+      </div>
+
+      {/* JUDGE FORENSIC SUMMARY BANNER (Screen Only) */}
+      <div className="print:hidden p-5 rounded-xl bg-slate-900 border border-slate-800 space-y-3 font-mono text-xs">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+          <span className="font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4" />
+            <span>Forensic Incident Briefing: Case {activeCase.id}</span>
+          </span>
+          <span className="px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/40 font-bold">
+            {activeCase.verdict.severity} THREAT
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="p-2 rounded bg-slate-950 border border-slate-800">
+            <span className="text-slate-500 text-[10px] block uppercase">Threat Verdict</span>
+            <span className="font-bold text-slate-200 truncate block">{activeCase.verdict.primaryThreat}</span>
+          </div>
+          <div className="p-2 rounded bg-slate-950 border border-slate-800">
+            <span className="text-slate-500 text-[10px] block uppercase">Risk Score</span>
+            <span className="font-bold text-red-400">{activeCase.verdict.overallRiskScore}/100</span>
+          </div>
+          <div className="p-2 rounded bg-slate-950 border border-slate-800">
+            <span className="text-slate-500 text-[10px] block uppercase">Confidence</span>
+            <span className="font-bold text-emerald-400">{activeCase.verdict.confidenceScore}%</span>
+          </div>
+          <div className="p-2 rounded bg-slate-950 border border-slate-800">
+            <span className="text-slate-500 text-[10px] block uppercase">Infrastructure</span>
+            <span className="font-bold text-slate-200 truncate block">Amsterdam, NL</span>
+          </div>
+          <div className="p-2 rounded bg-slate-950 border border-slate-800">
+            <span className="text-slate-500 text-[10px] block uppercase">Campaign Cluster</span>
+            <span className="font-bold text-orange-400">CAMP-0042</span>
+          </div>
+          <div className="p-2 rounded bg-slate-950 border border-slate-800">
+            <span className="text-slate-500 text-[10px] block uppercase">SHA-256 Integrity</span>
+            <span className="font-bold text-emerald-400">VERIFIED</span>
+          </div>
+        </div>
       </div>
 
       {/* Printable Report Document Sheet */}

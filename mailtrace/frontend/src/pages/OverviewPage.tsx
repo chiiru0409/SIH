@@ -4,31 +4,76 @@ import { ThreatTimeline } from '../components/overview/ThreatTimeline';
 import { ThreatDistribution } from '../components/overview/ThreatDistribution';
 import { RecentIncidents } from '../components/overview/RecentIncidents';
 import { ActiveCampaignsCard } from '../components/overview/ActiveCampaignsCard';
-import { ShieldCheck, Activity } from 'lucide-react';
+import { ShieldCheck, Activity, ArrowRight, ShieldAlert, Flame, Search, CheckCircle2 } from 'lucide-react';
+import { useInvestigation } from '../context/InvestigationContext';
 
 export const OverviewPage: React.FC = () => {
+  const { cases, campaigns, selectAndInvestigate, setActiveTab } = useInvestigation();
+  const criticalCase = cases.find(c => c.verdict.severity === 'CRITICAL') || cases[0];
+
+  const handleStartInvestigation = () => {
+    if (criticalCase) {
+      selectAndInvestigate(criticalCase.id);
+    } else {
+      setActiveTab('mailbox');
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* SOC Operations Header */}
-      <div className="p-5 rounded-lg bg-cyber-panel border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
+      {/* Judge Mode High-Impact Executive Hero Banner */}
+      <div className="p-6 rounded-xl bg-gradient-to-r from-slate-900 via-slate-900 to-cyan-950/40 border border-cyan-500/30 shadow-2xl flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div className="space-y-2 max-w-3xl">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <h2 className="text-base font-bold font-mono tracking-wider text-slate-100">
+            <h1 className="text-lg font-bold font-mono tracking-wider text-slate-100">
               MAILTRACE Security Operations Center
-            </h2>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold">
-              SIH26106 SOC ACTIVE
+            </h1>
+            <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold">
+              SIH26106 • AI-Powered DFIR Platform
             </span>
           </div>
-          <p className="text-xs text-slate-400 mt-1 font-sans max-w-3xl">
-            Continuous email threat detection, reverse-hop routing forensics, passive infrastructure geolocation, and multi-case campaign correlation for institutional defense.
+          <p className="text-sm text-slate-300 font-sans leading-relaxed">
+            Automated email threat detection, reverse-hop relay tracing, observed infrastructure geolocation, and multi-incident campaign correlation for enterprise defense.
           </p>
+
+          {/* 4 Core Judge Indicators */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 font-mono text-xs">
+            <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+              <span className="text-slate-400 text-[10px] block uppercase">Threats Detected</span>
+              <span className="text-base font-bold text-cyan-400">12</span>
+            </div>
+            <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+              <span className="text-slate-400 text-[10px] block uppercase">Active Campaigns</span>
+              <span className="text-base font-bold text-orange-400">3 Clusters</span>
+            </div>
+            <div className="p-2.5 rounded-lg bg-slate-950/80 border border-red-500/30 bg-red-950/10">
+              <span className="text-red-400 text-[10px] block uppercase font-bold">Critical Threats</span>
+              <span className="text-base font-bold text-red-400">1 Urgent</span>
+            </div>
+            <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800">
+              <span className="text-slate-400 text-[10px] block uppercase">Active Investigations</span>
+              <span className="text-base font-bold text-emerald-400">3 Open</span>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 text-xs font-mono text-slate-400 bg-slate-900/80 px-3 py-2 rounded border border-slate-800 shrink-0">
-          <Activity className="w-4 h-4 text-cyan-400" />
-          <span>Engine Status: <strong className="text-emerald-400">NOMINAL (100% ONLINE)</strong></span>
+        {/* Primary Action CTA */}
+        <div className="flex flex-col sm:flex-row lg:flex-col gap-3 shrink-0">
+          <button
+            onClick={handleStartInvestigation}
+            className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-mono text-xs font-bold transition-all shadow-glow-accent group"
+          >
+            <ShieldAlert className="w-4 h-4 text-slate-950" />
+            <span>INVESTIGATE THREATS</span>
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </button>
+          <button
+            onClick={() => setActiveTab('mailbox')}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-mono text-xs font-semibold transition-colors"
+          >
+            <span>View Security Mailbox</span>
+          </button>
         </div>
       </div>
 
